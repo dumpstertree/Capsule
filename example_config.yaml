@@ -1,0 +1,26 @@
+# =============================================================================
+# Gaming LXC Setup — Config
+# Copy this file to config.yaml and adjust values for your setup.
+# Run: sudo bash setup.sh config.yaml
+# =============================================================================
+
+user:
+  name: gamer                  # Username to create and run services under
+
+gpu:
+  index: 0                     # GPU index. Derives /dev/dri/card{N} and /dev/dri/renderD{128+N}
+                               # All containers sharing the same GPU use the same index (usually 0)
+
+display:
+  width: 1920
+  height: 1080
+  refresh_rate: 60
+
+steam:
+  offline: false               # Set to true to launch Steam in offline mode (suppresses store)
+
+sunshine:
+  encoder: vaapi               # vaapi (hardware, recommended) or software
+  bitrate: 50000               # Streaming bitrate in kbps
+  port: 47990                  # Sunshine web UI and base streaming port
+  log_level: info              # none | fatal | error | warning | info | debug | verbose
