@@ -1,24 +1,30 @@
 #!/bin/bash
 # =============================================================================
-# Arch LXC Gaming Setup
+# Capsule — Gaming LXC Setup
 # Steam Big Picture + Gamescope + Sunshine (VAAPI)
 #
-# Usage: sudo bash setup.sh config.yaml
+# Usage: sudo bash setup.sh <path-to-config.yaml>
 #
 # DISK REQUIREMENT: At least 10GB free before running.
 #
 # HOST REQUIREMENTS (add to /etc/pve/lxc/VMID.conf on Proxmox host):
 #
-#   lxc.cgroup2.devices.allow: c 226:0 rwm
-#   lxc.cgroup2.devices.allow: c 226:128 rwm
-#   lxc.mount.entry: /dev/dri/card0 dev/dri/card0 none bind,optional,create=file
-#   lxc.mount.entry: /dev/dri/renderD128 dev/dri/renderD128 none bind,optional,create=file
+#   lxc.cgroup2.devices.allow: c 226:1 rwm
+#   lxc.cgroup2.devices.allow: c 226:129 rwm
+#   lxc.mount.entry: /dev/dri/card1 dev/dri/card1 none bind,optional,create=file
+#   lxc.mount.entry: /dev/dri/renderD129 dev/dri/renderD129 none bind,optional,create=file
 #   lxc.init.cmd: /sbin/init
 #
-#   Also ensure the container features line includes: nesting=1
+#   Note: Adjust card1/renderD129 to match your GPU index.
+#   All containers sharing the same GPU use the same device nodes.
 #
-#   Note: All containers sharing the same GPU will use the same device nodes.
-#   Multiple containers can run simultaneously against the same GPU.
+# HOST udev rule (run once on Proxmox host):
+#
+#   cat > /etc/udev/rules.d/99-dri-lxc.rules << EOF
+#   SUBSYSTEM=="drm", KERNEL=="card1", MODE="0666"
+#   SUBSYSTEM=="drm", KERNEL=="renderD129", MODE="0666"
+#   EOF
+#   udevadm control --reload-rules && udevadm trigger
 # =============================================================================
 
 set -uo pipefail
@@ -43,17 +49,36 @@ info()  { echo -e "${BLUE}[INFO]${NC} $1"; }
 CONFIG_FILE="$1"
 [[ ! -f "$CONFIG_FILE" ]] && error "Config file not found: $CONFIG_FILE"
 
-# --- Install yq for YAML parsing if not present ---
-if ! command -v yq &>/dev/null; then
-    log "Installing yq for config parsing..."
-    pacman -S --noconfirm yq
+# --- Install correct yq (mikefarah Go binary, not the pacman Python wrapper) ---
+install_yq() {
+    log "Installing yq (mikefarah)..."
+    # Remove pacman yq if present — it's a different incompatible tool
+    pacman -Rns --noconfirm yq 2>/dev/null || true
+    curl -sL "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64" \
+        -o /usr/local/bin/yq
+    chmod +x /usr/local/bin/yq
+}
+
+if command -v yq &>/dev/null; then
+    # Check it's the correct yq by looking for mikefarah in version output
+    if ! yq --version 2>&1 | grep -q "mikefarah\|version v4\|version v3"; then
+        warn "Wrong yq version detected, replacing with mikefarah yq..."
+        install_yq
+    else
+        log "yq already installed correctly"
+    fi
+else
+    install_yq
 fi
+
+# Verify yq works
+yq --version &>/dev/null || error "yq installation failed"
 
 # --- Parse config ---
 log "Reading config from $CONFIG_FILE..."
 
 cfg() {
-    yq e "$1" "$CONFIG_FILE"
+    yq e "$1" "$CONFIG_FILE" 2>/dev/null
 }
 
 # User
@@ -65,7 +90,7 @@ GPU_CARD="/dev/dri/card${GPU_INDEX}"
 GPU_RENDER="/dev/dri/renderD$((128 + GPU_INDEX))"
 
 # Steam
-STEAM_OFFLINE=$(cfg '.steam.offline // false')
+STEAM_OFFLINE=$(cfg '.steam.offline // "false"')
 
 # Display / gamescope
 RESOLUTION_W=$(cfg '.display.width // 1920')
@@ -78,15 +103,25 @@ SUNSHINE_BITRATE=$(cfg '.sunshine.bitrate // 50000')
 SUNSHINE_PORT=$(cfg '.sunshine.port // 47990')
 SUNSHINE_LOG_LEVEL=$(cfg '.sunshine.log_level // "info"')
 
+# Validate required values parsed correctly
+[[ -z "$GAMING_USER" ]]     && error "Failed to parse user.name from config"
+[[ -z "$GPU_INDEX" ]]       && error "Failed to parse gpu.index from config"
+[[ -z "$RESOLUTION_W" ]]    && error "Failed to parse display.width from config"
+[[ -z "$RESOLUTION_H" ]]    && error "Failed to parse display.height from config"
+[[ -z "$REFRESH_RATE" ]]    && error "Failed to parse display.refresh_rate from config"
+[[ -z "$SUNSHINE_ENCODER" ]] && error "Failed to parse sunshine.encoder from config"
+[[ -z "$SUNSHINE_BITRATE" ]] && error "Failed to parse sunshine.bitrate from config"
+[[ -z "$SUNSHINE_PORT" ]]   && error "Failed to parse sunshine.port from config"
+
 log "Config loaded:"
-info "  User:         $GAMING_USER"
-info "  GPU card:     $GPU_CARD"
-info "  GPU render:   $GPU_RENDER"
-info "  Resolution:   ${RESOLUTION_W}x${RESOLUTION_H} @ ${REFRESH_RATE}fps"
-info "  Encoder:      $SUNSHINE_ENCODER"
-info "  Bitrate:      $SUNSHINE_BITRATE"
+info "  User:          $GAMING_USER"
+info "  GPU card:      $GPU_CARD"
+info "  GPU render:    $GPU_RENDER"
+info "  Resolution:    ${RESOLUTION_W}x${RESOLUTION_H} @ ${REFRESH_RATE}fps"
+info "  Encoder:       $SUNSHINE_ENCODER"
+info "  Bitrate:       $SUNSHINE_BITRATE kbps"
 info "  Sunshine port: $SUNSHINE_PORT"
-info "  Log level:    $SUNSHINE_LOG_LEVEL"
+info "  Log level:     $SUNSHINE_LOG_LEVEL"
 info "  Steam offline: $STEAM_OFFLINE"
 
 # --- Disk space check ---
@@ -102,8 +137,9 @@ if [[ ! -e "$GPU_CARD" ]]; then
     error "GPU card device not found: $GPU_CARD
   Ensure the host LXC config has the correct mount entries and the container has been restarted.
   Expected host config:
-    lxc.cgroup2.devices.allow: c 226:$((GPU_INDEX * 2)) rwm
-    lxc.mount.entry: $GPU_CARD dev/dri/card${GPU_INDEX} none bind,optional,create=file"
+    lxc.cgroup2.devices.allow: c 226:${GPU_INDEX} rwm
+    lxc.mount.entry: $GPU_CARD dev/dri/card${GPU_INDEX} none bind,optional,create=file
+  Also ensure the host udev rule sets MODE=0666 for this device."
 fi
 
 if [[ ! -e "$GPU_RENDER" ]]; then
@@ -111,7 +147,8 @@ if [[ ! -e "$GPU_RENDER" ]]; then
   Ensure the host LXC config has the correct mount entries and the container has been restarted.
   Expected host config:
     lxc.cgroup2.devices.allow: c 226:$((128 + GPU_INDEX)) rwm
-    lxc.mount.entry: $GPU_RENDER dev/dri/renderD$((128 + GPU_INDEX)) none bind,optional,create=file"
+    lxc.mount.entry: $GPU_RENDER dev/dri/renderD$((128 + GPU_INDEX)) none bind,optional,create=file
+  Also ensure the host udev rule sets MODE=0666 for this device."
 fi
 log "GPU devices found: $GPU_CARD and $GPU_RENDER"
 
@@ -119,17 +156,16 @@ log "GPU devices found: $GPU_CARD and $GPU_RENDER"
 if ! command -v systemctl &>/dev/null; then
     log "systemd not found, installing..."
     pacman -S --noconfirm systemd systemd-sysvcompat
-    warn "systemd installed. You must add the following to your host LXC config and restart the container:"
+    warn "systemd installed. Add the following to your host LXC config and restart:"
     warn "  lxc.init.cmd: /sbin/init"
     warn "Then re-run this script."
     exit 0
 fi
 
-# Check if systemd is actually running as PID 1
 PID1=$(cat /proc/1/comm)
 if [[ "$PID1" != "systemd" && "$PID1" != "init" ]]; then
-    warn "systemd is installed but not running as PID 1 (current: $PID1)"
-    warn "Add the following to your host LXC config and restart the container:"
+    warn "systemd installed but not running as PID 1 (current: $PID1)"
+    warn "Add the following to your host LXC config and restart:"
     warn "  lxc.init.cmd: /sbin/init"
     warn "Then re-run this script."
     exit 0
@@ -235,7 +271,6 @@ log "Configuring Sunshine..."
 SUNSHINE_CONF_DIR="$GAMING_HOME/.config/sunshine"
 mkdir -p "$SUNSHINE_CONF_DIR"
 
-# Map log level string to Sunshine numeric level
 case "$SUNSHINE_LOG_LEVEL" in
     none)    SUNSHINE_LOG_NUM=0 ;;
     fatal)   SUNSHINE_LOG_NUM=1 ;;
@@ -249,7 +284,7 @@ esac
 
 cat > "$SUNSHINE_CONF_DIR/sunshine.conf" << EOF
 # Sunshine configuration
-# Generated by setup.sh — do not edit manually
+# Generated by Capsule setup.sh — do not edit manually
 
 encoder = $SUNSHINE_ENCODER
 adapter_name = $GPU_RENDER
@@ -268,7 +303,6 @@ chown -R "$GAMING_USER:$GAMING_USER" "$SUNSHINE_CONF_DIR"
 log "Creating gamescope launch script..."
 LAUNCH_SCRIPT="$GAMING_HOME/start-gaming.sh"
 
-# Build steam flags
 STEAM_FLAGS="-gamepadui -pipewire-dmabuf"
 if [[ "$STEAM_OFFLINE" == "true" ]]; then
     STEAM_FLAGS="$STEAM_FLAGS -offline"
@@ -393,17 +427,9 @@ fi
 
 # --- Cleanup ---
 log "Cleaning up build artifacts..."
-
-# Remove yay build cache
 rm -rf "$GAMING_HOME/.cache/yay"
-
-# Remove go compiler (only needed to build yay)
 pacman -Rns --noconfirm go 2>/dev/null || true
-
-# Remove build-only dependencies no longer needed at runtime
 pacman -Rns --noconfirm base-devel git 2>/dev/null || true
-
-# Clear pacman package cache
 pacman -Sc --noconfirm
 
 FREE_AFTER=$(df / --output=avail | tail -1 | awk '{print int($1/1024/1024)}')
@@ -413,7 +439,7 @@ log "Cleanup complete. Disk free: ${FREE_AFTER}GB"
 log "Setup complete!"
 echo ""
 echo "============================================================"
-echo " Next steps"
+echo " Capsule setup complete"
 echo "============================================================"
 echo " 1. Reboot the container"
 echo " 2. Open https://<container-ip>:${SUNSHINE_PORT} for Sunshine UI"
