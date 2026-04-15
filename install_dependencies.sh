@@ -39,6 +39,19 @@ for pkg in "${BASE_PACKAGES[@]}"; do
     fi
 done
 
+
+# --- Enable multilib ---
+log "Checking multilib repository..."
+if ! grep -q "^\[multilib\]" /etc/pacman.conf; then
+    log "Enabling multilib..."
+    printf '\n[multilib]\nInclude = /etc/pacman.d/mirrorlist\n' >> /etc/pacman.conf
+fi
+
+# --- System update ---
+log "Updating system..."
+pacman -Syu --noconfirm
+
+# --- Install ---
 if [[ ${#TO_INSTALL[@]} -gt 0 ]]; then
     pacman -S --noconfirm "${TO_INSTALL[@]}"
 else
