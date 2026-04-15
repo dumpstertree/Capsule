@@ -84,8 +84,11 @@ export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
 echo '[+] Starting DBus...'
 dbus-daemon --session --address=$DBUS_SESSION_BUS_ADDRESS --fork
 
-echo '[+] Launching Steam...'
-steam -bigpicture &
+echo "[+] Launching Firefox..."
+sudo -u gamer DISPLAY=:1 \
+  DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS \
+  XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR \
+  firefox &
 
 sleep 5
 
