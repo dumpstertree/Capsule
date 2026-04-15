@@ -2,30 +2,27 @@
 
 set -e
 
-USER_NAME="gamer"
-USER_ID=1000
 DISPLAY_NUM=":1"
-XDG_RUNTIME_DIR="/run/user/$USER_ID"
+XDG_RUNTIME_DIR="/run/user/$(id -u)"
 XORG_CONF="/tmp/xorg-dummy.conf"
 
-echo "[+] Ensuring user exists..."
+echo "[+] Running as user: $(whoami)"
 
-if ! id "$USER_NAME" >/dev/null 2>&1; then
-    useradd -m -u $USER_ID -s /bin/bash "$USER_NAME"
-    echo "[+] Created user: $USER_NAME"
-fi
-
-echo "[+] Fixing ownership..."
-chown -R $USER_NAME:$USER_NAME /home/$USER_NAME
-
+# Ensure runtime dir exists
 echo "[+] Setting up runtime dir..."
 mkdir -p "$XDG_RUNTIME_DIR"
-chown -R $USER_NAME:$USER_NAME "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
 
-echo "[+] Fixing GPU permissions (debug mode)..."
-chmod 666 /dev/dri/* || true
+export XDG_RUNTIME_DIR
+export DISPLAY="$DISPLAY_NUM"
 
+# Start DBus session if not already running
+if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
+    echo "[+] Starting DBus session..."
+    eval "$(dbus-launch --sh-syntax)"
+fi
+
+# Create dummy Xorg config
 echo "[+] Creating Xorg dummy config..."
 
 cat > "$XORG_CONF" <<EOF
@@ -61,47 +58,39 @@ EOF
 echo "[+] Starting Xorg on $DISPLAY_NUM..."
 rm -f /tmp/.X1-lock || true
 
-Xorg "$DISPLAY_NUM" -config "$XORG_CONF" -noreset +extension GLX +extension RANDR +extension RENDER &
+Xorg "$DISPLAY_NUM" \
+    -config "$XORG_CONF" \
+    -noreset \
+    +extension GLX \
+    +extension RANDR \
+    +extension RENDER &
+
 sleep 3
 
-echo "[+] Starting DBus as gamer..."
+# Verify X is alive
+if ! xdpyinfo -display "$DISPLAY_NUM" >/dev/null 2>&1; then
+    echo "[!] Xorg failed to start"
+    exit 1
+fi
 
-# Start DBus as the correct user
-sudo -u "$USER_NAME" bash -c "
-export XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR
-dbus-daemon --session --fork --print-address
-"
+echo "[+] Xorg is running"
 
-# Export for later use
-export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
-export XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR"
+# Optional: sanity GPU check
+echo "[+] Checking GPU access..."
+ls -l /dev/dri || true
 
+# Launch Firefox (test app)
 echo "[+] Launching Firefox..."
-
-sudo -u "$USER_NAME" env -i \
-    HOME="/home/$USER_NAME" \
-    USER="$USER_NAME" \
-    LOGNAME="$USER_NAME" \
-    DISPLAY="$DISPLAY_NUM" \
-    XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
-    DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" \
-    firefox &
+DISPLAY="$DISPLAY_NUM" firefox &
 
 sleep 5
 
+# Launch Sunshine
 echo "[+] Starting Sunshine..."
-
-sudo -u "$USER_NAME" env -i \
-    HOME="/home/$USER_NAME" \
-    USER="$USER_NAME" \
-    LOGNAME="$USER_NAME" \
-    DISPLAY="$DISPLAY_NUM" \
-    XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
-    DBUS_SESSION_BUS_ADDRESS="$DBUS_SESSION_BUS_ADDRESS" \
-    sunshine &
+DISPLAY="$DISPLAY_NUM" sunshine &
 
 echo "[+] Done."
-echo "    Firefox running on DISPLAY=$DISPLAY_NUM"
-echo "    Sunshine Web UI: https://<container-ip>:47990"
+echo "    Display: $DISPLAY_NUM"
+echo "    Sunshine UI: https://<container-ip>:47990"
 
 wait
