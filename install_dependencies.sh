@@ -1,17 +1,17 @@
 log "Installing base packages..."
 
 BASE_PACKAGES=(
-    mesa
-    lib32-mesa
+    #mesa
+    #lib32-mesa
     vulkan-radeon
     lib32-vulkan-radeon
-    libva-mesa-driver
-    lib32-libva-mesa-driver
+    #libva-mesa-driver
+    #lib32-libva-mesa-driver
     gamescope
-    pipewire
-    lib32-pipewire
-    pipewire-alsa
-    wireplumber
+    #pipewire
+    #lib32-pipewire
+    #pipewire-alsa
+    #wireplumber
     steam
     curl
     sudo
