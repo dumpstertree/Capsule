@@ -1,4 +1,4 @@
-log "Installing base packages..."
+#log "Installing base packages..."
 
 BASE_PACKAGES=(
     #mesa
