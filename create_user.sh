@@ -12,7 +12,7 @@ echo "Creating user: $USERNAME"
 useradd -m -s /bin/bash "$USERNAME"
 
 echo "Setting password for $USERNAME"
-passwd "$USERNAME"
+passwd -d "$USERNAME"
 
 echo "Adding $USERNAME to required groups"
 # video/render: GPU access
@@ -27,8 +27,12 @@ for group in video render input audio; do
     fi
 done
 
+chown -R "$USERNAME:$USERNAME" "$USER_HOME/.config"
+
 echo "Enabling linger for $USERNAME (keeps user session alive without login)"
 loginctl enable-linger "$USERNAME"
+
+modprobe uinput
 
 echo ""
 echo "Done. Verify with:"
