@@ -12,8 +12,7 @@ info()  { echo -e "${BLUE}[INFO]${NC} $1"; }
 
 # ---  ---
 log "Generating sunshine.conf..."
-mkdir /home/gamer/.config/
-mkdir /home/gamer/.config/sunshine/
+mkdir -p /home/gamer/.config/sunshine/
 touch /home/gamer/.config/sunshine/sunshine.conf
 printf 'origin_web_ui_allowed = wan\naddress_family = both\nupnp = disabled' >> /etc/pacman.conf
 
