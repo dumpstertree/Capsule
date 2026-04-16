@@ -32,9 +32,3 @@ chown -R "$USERNAME:$USERNAME" "$USER_HOME/.config"
 
 echo "Enabling linger for $USERNAME (keeps user session alive without login)"
 loginctl enable-linger "$USERNAME"
-
-modprobe uinput
-
-echo ""
-echo "Done. Verify with:"
-echo "  id $USERNAME"
