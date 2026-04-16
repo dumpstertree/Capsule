@@ -18,4 +18,4 @@ printf 'origin_web_ui_allowed = wan\naddress_family = both\nupnp = disabled' >> 
 
 # --- Setup Creds ---
 log "Setting Sunshine Credentials..."
-runuser -u gamer sunshine --creds gamer gamer
+runuser -u gamer -- sunshine --creds gamer gamer
