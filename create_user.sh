@@ -27,6 +27,7 @@ for group in video render input audio; do
     fi
 done
 
+mkdir -p "$USER_HOME/.config/sunshine"
 chown -R "$USERNAME:$USERNAME" "$USER_HOME/.config"
 
 echo "Enabling linger for $USERNAME (keeps user session alive without login)"
