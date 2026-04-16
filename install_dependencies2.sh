@@ -11,9 +11,9 @@ error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 info()  { echo -e "${BLUE}[INFO]${NC} $1"; }
 
 # --- Init Pacman ---
-echo "Initializing pacman key"
-log "Initializing pacman..."
-pacman-key --init
+#echo "Initializing pacman key"
+#log "Initializing pacman..."
+#pacman-key --init
 
 # --- Adding Sunshine Repo
 log "Checking Sunshine repository..."
@@ -36,9 +36,7 @@ pacman -Syu --noconfirm
 
 # --- All Packages
 BASE_PACKAGES=(
-    steam
     firefox
-    bootd
     sunshine
     xf86-video-dummy
     xf86-input-libinput
