@@ -14,7 +14,7 @@ info()  { echo -e "${BLUE}[INFO]${NC} $1"; }
 log "Generating sunshine.conf..."
 mkdir -p /home/gamer/.config/sunshine/
 touch /home/gamer/.config/sunshine/sunshine.conf
-printf 'origin_web_ui_allowed = wan\naddress_family = both\nupnp = disabled' >> /etc/pacman.conf
+printf 'capture=x11\norigin_web_ui_allowed = wan\naddress_family = both\nupnp = disabled' >> /etc/pacman.conf
 
 # --- Setup Creds ---
 log "Setting Sunshine Credentials..."
