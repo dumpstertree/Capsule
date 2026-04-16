@@ -36,6 +36,7 @@ pacman -Syu --noconfirm
 
 # --- All Packages
 BASE_PACKAGES=(
+    nano
     firefox
     sunshine
     xf86-video-dummy
