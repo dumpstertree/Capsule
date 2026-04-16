@@ -16,7 +16,7 @@ udevadm trigger --subsystem-match=input
 udevadm settle
 
 # Start Xorg with the dummy driver
-Xorg :0 -config /etc/X11/xorg-dummy.conf -noreset -novtswitch &
+Xorg :0 -config ./xorg-config.conf -noreset -novtswitch &
 sleep 2
 
 dbus-run-session -- bash -c '
