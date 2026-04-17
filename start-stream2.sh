@@ -14,7 +14,6 @@ udevadm settle
 Xorg :0 -config ./xorg.conf -noreset -novtswitch &
 sleep 2
 
-# set primary display
 #xrandr --output DUMMY0 --primary
 sleep 2
 
@@ -26,6 +25,9 @@ export SUNSHINE_CAPTURE=x11
 
 # allow local access to X (prevents auth issues)
 xhost +local: >/dev/null 2>&1
+
+# set primary display
+xrandr --output DUMMY0 --primary --mode 1920x1080
 
 # enable audio
 pipewire &
