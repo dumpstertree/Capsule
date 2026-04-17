@@ -27,7 +27,9 @@ export SUNSHINE_CAPTURE=x11
 xhost +local: >/dev/null 2>&1
 
 # set primary display
-xrandr --output DUMMY0 --primary --mode 1920x1080
+xrandr --newmode "1920x1080" 148.50 1920 2008 2052 2200 1080 1084 1089 1125 +hsync +vsync
+xrandr --addmode DUMMY0 "1920x1080"
+xrandr --output DUMMY0 --mode "1920x1080" --primary
 
 # enable audio
 pipewire &
