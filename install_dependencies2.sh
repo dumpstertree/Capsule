@@ -45,6 +45,9 @@ BASE_PACKAGES=(
     xorg-xinput
     xorg-xhost
     dbus
+    pipewire 
+    pipewire-alsa 
+    wireplumber
 )
 
 # --- Define Install Fn ---
