@@ -31,10 +31,6 @@ xrandr --newmode "1920x1080" 148.50 1920 2008 2052 2200 1080 1084 1089 1125 +hsy
 xrandr --addmode DUMMY0 "1920x1080"
 xrandr --output DUMMY0 --mode "1920x1080" --primary
 
-echo "CHECKING DRI HERE"
-ls -l /dev/dri
-glxinfo | grep renderer
-
 # enable audio
 pipewire &
 wireplumber &
@@ -42,7 +38,7 @@ pipewire-pulse &
 sleep 2
 
 # start app
-steam &
+sh inject.sh
 
 # small delay to ensure something is rendering
 sleep 2
