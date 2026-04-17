@@ -5,7 +5,7 @@ killall -q sunshine
 killall -q Xorg
 
 # start dummy Xorg on :0
-Xorg :0 -config /xorg.conf &
+Xorg :0 -config ./xorg.conf &
 sleep 2
 
 # start dbus session and run everything inside it
