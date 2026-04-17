@@ -13,14 +13,20 @@ udevadm settle
 # Start Xorg as root (needs privilege for VT/device access)
 Xorg :0 -config ./xorg.conf -noreset -novtswitch &
 sleep 2
+# start dbus session and run everything inside it
+runuser -u gamer -- dbus-run-session -- bash -c '
 
-# Run everything else as gamer
-exec su - gamer -c '
 export DISPLAY=:0
 export SUNSHINE_CAPTURE=x11
 
+# allow local access to X (prevents auth issues)
 xhost +local: >/dev/null 2>&1
+
+# start firefox
 firefox &
+
+# small delay to ensure something is rendering
 sleep 2
+
+# start sunshine
 sunshine
-'
