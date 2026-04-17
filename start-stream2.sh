@@ -27,11 +27,6 @@ export SUNSHINE_CAPTURE=x11
 # allow local access to X (prevents auth issues)
 xhost +local: >/dev/null 2>&1
 
-pipewire &
-wireplumber &
-pipewire-pulse &
-sleep 2
-
 # start app
 steam &
 
