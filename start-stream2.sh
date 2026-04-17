@@ -15,7 +15,7 @@ Xorg :0 -config ./xorg.conf -noreset -novtswitch &
 sleep 2
 
 # set primary display
-xrandr --output DUMMY0 --primary
+#xrandr --output DUMMY0 --primary
 sleep 2
 
 # start dbus session and run everything inside it
@@ -26,6 +26,12 @@ export SUNSHINE_CAPTURE=x11
 
 # allow local access to X (prevents auth issues)
 xhost +local: >/dev/null 2>&1
+
+# enable audio
+pipewire &
+wireplumber &
+pipewire-pulse &
+sleep 2
 
 # start app
 steam &
