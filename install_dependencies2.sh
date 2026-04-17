@@ -47,6 +47,7 @@ BASE_PACKAGES=(
     dbus
     pipewire 
     pipewire-alsa 
+    pipewire-pulse
     wireplumber
 )
 
