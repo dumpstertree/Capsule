@@ -24,7 +24,7 @@ export SUNSHINE_CAPTURE=x11
 xhost +local: >/dev/null 2>&1
 
 # start firefox
-firefox &
+steam -gamepadui &
 
 # small delay to ensure something is rendering
 sleep 2
