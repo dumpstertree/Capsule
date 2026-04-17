@@ -10,9 +10,10 @@ sleep 1
 udevadm trigger --subsystem-match=input
 udevadm settle
 
-# Start Xorg as root (needs privilege for VT/device access)
+# start dummy Xorg on :0 this needs to not be hardcoded
 Xorg :0 -config ./xorg.conf -noreset -novtswitch &
 sleep 2
+
 # start dbus session and run everything inside it
 runuser -u gamer -- dbus-run-session -- bash -c '
 
@@ -30,3 +31,4 @@ sleep 2
 
 # start sunshine
 sunshine
+'
