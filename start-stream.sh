@@ -12,7 +12,7 @@ cd "$SCRIPT_DIR" || exit 1
 
 ls -l xorg.conf || { echo "xorg.conf missing"; exit 1; }
 
-Xorg :0 -config xorg.conf &
+Xorg :0 -config /xorg.conf &
 sleep 2
 
 # start dbus session and run everything inside it
