@@ -40,7 +40,7 @@ pipewire-pulse &
 sleep 2
 
 # start app
-steam -gamepadui -screen-fullscreen 1 &
+steam -gamepadui &
 
 # small delay to ensure something is rendering
 sleep 2
