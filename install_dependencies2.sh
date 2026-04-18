@@ -49,6 +49,7 @@ BASE_PACKAGES=(
     pipewire-alsa 
     pipewire-pulse
     wireplumber
+    openbox
 )
 
 # --- Define Install Fn ---
