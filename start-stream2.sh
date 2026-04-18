@@ -5,8 +5,15 @@ killall -q sunshine || true
 killall -q pipewire || true
 killall -q Xorg     || true
 
-# make sure other services are active
-sleep 5
+# Wait for PipeWire pulse socket to be ready (up to 30 seconds)
+echo "Waiting for PipeWire pulse socket..."
+for i in $(seq 1 30); do
+    if [ -S "/run/user/1000/pulse/native" ]; then
+        echo "PipeWire pulse socket ready after ${i}s"
+        break
+    fi
+    sleep 1
+done
 
 # /sys fix - requires lxc.mount.auto = sys:rw (already set)
 /usr/lib/systemd/systemd-udevd --daemon 2>/dev/null || true
