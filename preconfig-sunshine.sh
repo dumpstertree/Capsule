@@ -13,8 +13,23 @@ info()  { echo -e "${BLUE}[INFO]${NC} $1"; }
 # ---  ---
 log "Generating sunshine.conf..."
 mkdir -p /home/gamer/.config/sunshine/
+chown gamer /home/gamer/.config/sunshine/
 touch /home/gamer/.config/sunshine/sunshine.conf
-printf 'capture=x11\norigin_web_ui_allowed = wan\naddress_family = both\nupnp = disabled' >> /etc/pacman.conf
+printf 'capture = x11ds5_inputtino_randomize_mac = disabled
+min_log_level = 2
+motion_as_ds4 = disabled
+native_pen_touch = disabled
+system_tray = disabled
+touchpad_as_ds4 = disabled
+origin_web_ui_allowed = wan
+address_family = both
+upnp = disabled
+ds5_inputtino_randomize_mac = disabled
+min_log_level = 2
+motion_as_ds4 = disabled
+native_pen_touch = disabled
+system_tray = disabled
+touchpad_as_ds4 = disabled' >> /etc/pacman.conf
 
 # --- Setup Creds ---
 log "Setting Sunshine Credentials..."
