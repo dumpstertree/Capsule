@@ -2,6 +2,7 @@
 set -e
 
 killall -q sunshine || true
+killall -q pipewire || true
 killall -q Xorg     || true
 
 # /sys fix - requires lxc.mount.auto = sys:rw (already set)
