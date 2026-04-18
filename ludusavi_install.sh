@@ -1,30 +1,34 @@
+
 #!/usr/bin/env bash
-# ludusavi-install.sh — Install Ludusavi on Arch Linux via yay
+# ludusavi-install.sh — Install Ludusavi by downloading the prebuilt binary from GitHub
 
 set -euo pipefail
 
-# ── Install yay if not already present ───────────────────────────────────────
-if ! command -v yay &>/dev/null; then
-  echo "==> yay not found, installing yay..."
+INSTALL_DIR="/usr/local/bin"
+API_URL="https://api.github.com/repos/mtkennerly/ludusavi/releases/latest"
 
-  if ! command -v git &>/dev/null; then
-    echo "  Installing git via pacman..."
-    pacman -S --needed --noconfirm git
-  fi
-
-  echo "  Installing build dependencies..."
-  pacman -S --needed --noconfirm fakeroot debugedit
-
-  TMP_DIR="$(mktemp -d)"
-  trap 'rm -rf "$TMP_DIR"' EXIT
-  chown gamer "$TMP_DIR"
-
-  runuser -u gamer -- git clone https://aur.archlinux.org/yay.git "$TMP_DIR/yay"
-  runuser -u gamer -- bash -c "cd '$TMP_DIR/yay' && makepkg -si --noconfirm"
-  echo "==> yay installed."
+if ! command -v curl &>/dev/null; then
+  echo "ERROR: curl is required. Install it with: pacman -S curl" >&2
+  exit 1
 fi
 
-# ── Install Ludusavi ─────────────────────────────────────────────────────────
-echo "==> Installing ludusavi via yay..."
-runuser -u gamer -- yay -S --needed --noconfirm ludusavi
+echo "==> Fetching latest Ludusavi release info..."
+DOWNLOAD_URL=$(curl -fsSL "$API_URL" \
+  | grep -o '"browser_download_url": *"[^"]*linux[^"]*\.tar\.gz"' \
+  | grep -o 'https://[^"]*')
+
+if [[ -z "$DOWNLOAD_URL" ]]; then
+  echo "ERROR: Could not find a Linux release asset." >&2
+  exit 1
+fi
+
+echo "==> Downloading $DOWNLOAD_URL"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+
+curl -fsSL "$DOWNLOAD_URL" -o "$TMP_DIR/ludusavi.tar.gz"
+tar -xzf "$TMP_DIR/ludusavi.tar.gz" -C "$TMP_DIR"
+
+install -m 755 "$TMP_DIR/ludusavi" "$INSTALL_DIR/ludusavi"
+
 echo "==> Ludusavi installed: $(ludusavi --version)"
