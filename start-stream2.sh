@@ -5,6 +5,9 @@ killall -q sunshine || true
 killall -q pipewire || true
 killall -q Xorg     || true
 
+# make sure other services are active
+sleep 5
+
 # /sys fix - requires lxc.mount.auto = sys:rw (already set)
 /usr/lib/systemd/systemd-udevd --daemon 2>/dev/null || true
 sleep 1
