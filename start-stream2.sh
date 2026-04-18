@@ -38,7 +38,7 @@ pipewire-pulse &
 sleep 2
 
 # start app
-sh inject.sh
+sh /Capsule/inject.sh
 
 # small delay to ensure something is rendering
 sleep 2
