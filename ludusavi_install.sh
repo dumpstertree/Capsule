@@ -9,8 +9,11 @@ if ! command -v yay &>/dev/null; then
 
   if ! command -v git &>/dev/null; then
     echo "  Installing git via pacman..."
-    sudo pacman -S --needed --noconfirm git
+    pacman -S --needed --noconfirm git
   fi
+
+  echo "  Installing build dependencies..."
+  pacman -S --needed --noconfirm fakeroot debugedit
 
   TMP_DIR="$(mktemp -d)"
   trap 'rm -rf "$TMP_DIR"' EXIT
