@@ -8,3 +8,10 @@ echo "Setting up Sunshine"
 sh /Capsule/preconfigure-sunshine.sh
 
 echo "Setting up XOrg"
+sh /Capsule/preconfigure-xorg.sh
+
+echo "Setting up Capsule"
+sh /Capsule/perconfigure-capsule.sh
+
+echo "Start Streaming"
+systemctl start capsule.service
