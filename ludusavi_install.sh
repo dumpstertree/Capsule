@@ -16,12 +16,12 @@ if ! command -v yay &>/dev/null; then
   trap 'rm -rf "$TMP_DIR"' EXIT
   chown gamer "$TMP_DIR"
 
-  su gamer -c "git clone https://aur.archlinux.org/yay.git '$TMP_DIR/yay'"
-  su gamer -c "cd '$TMP_DIR/yay' && makepkg -si --noconfirm"
+  runuser -u gamer -- git clone https://aur.archlinux.org/yay.git "$TMP_DIR/yay"
+  runuser -u gamer -- bash -c "cd '$TMP_DIR/yay' && makepkg -si --noconfirm"
   echo "==> yay installed."
 fi
 
 # ── Install Ludusavi ─────────────────────────────────────────────────────────
 echo "==> Installing ludusavi via yay..."
-su gamer -c "yay -S --needed --noconfirm ludusavi"
+runuser -u gamer -- yay -S --needed --noconfirm ludusavi
 echo "==> Ludusavi installed: $(ludusavi --version)"
