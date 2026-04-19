@@ -10,11 +10,6 @@ warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 info()  { echo -e "${BLUE}[INFO]${NC} $1"; }
 
-# --- Init Pacman ---
-#echo "Initializing pacman key"
-#log "Initializing pacman..."
-#pacman-key --init
-
 # --- Adding Sunshine Repo
 log "Checking Sunshine repository..."
 if ! grep -q "^\[lizardbyte\]" /etc/pacman.conf; then
@@ -37,7 +32,6 @@ pacman -Syu --noconfirm
 # --- All Packages
 BASE_PACKAGES=(
     nano
-    firefox
     sunshine
     xf86-video-dummy
     xf86-input-libinput
@@ -67,3 +61,6 @@ if [[ ${#TO_INSTALL[@]} -gt 0 ]]; then
 else
     log "All base packages already installed"
 fi
+
+
+#pacman -S --needed xf86-video-amdgpu mesa vulkan-radeon libva-mesa-driver
