@@ -1,7 +1,7 @@
 [Unit]
 Description=Opening Capsule
-After=pipewire-pulse.service pipewire-pulse.socket pipewire.service pipewire.socket wirep>
-Requires=pipewire-pulse.service pipewire-pulse.socket pipewire.service pipewire.socket wi>
+After=pipewire-pulse.service pipewire-pulse.socket pipewire.service pipewire.socket wireplumber.service
+Requires=pipewire-pulse.service pipewire-pulse.socket pipewire.service pipewire.socket wireplumber.service
 
 [Service]
 Type=simple
