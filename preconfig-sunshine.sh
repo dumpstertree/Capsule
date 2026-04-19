@@ -21,3 +21,12 @@ chown -R gamer /home/gamer/.config/sunshine/
 
 # Setup the credentials 
 runuser -u gamer -- sunshine --creds gamer gamer
+
+# Reload daemon with new entries
+systemctl daemon-reload
+
+# Enable for future reloads
+systemctl enable avahi-daemon
+
+# Start
+systemctl start avahi-daemon
