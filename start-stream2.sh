@@ -39,15 +39,8 @@ wireplumber &
 pipewire-pulse &
 sleep 2
 
-# Wait for PipeWire pulse socket to be ready (up to 30 seconds)
-echo "Waiting for PipeWire pulse socket..."
-for i in $(seq 1 30); do
-    if [ -S "/run/user/1000/pulse/native" ]; then
-        echo "PipeWire pulse socket ready after ${i}s"
-        break
-    fi
-    sleep 1
-done
+openbox &
+sleep 1
 
 # start app
 sh /Capsule/inject.sh
