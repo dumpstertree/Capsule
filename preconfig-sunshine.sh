@@ -29,4 +29,4 @@ systemctl daemon-reload
 systemctl enable avahi-daemon
 
 # Start
-systemctl start avahi-daemon
+#systemctl start avahi-daemon
