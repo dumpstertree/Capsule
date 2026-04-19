@@ -44,6 +44,10 @@ BASE_PACKAGES=(
     pipewire-pulse
     wireplumber
     openbox
+    xf86-video-amdgpu 
+    mesa 
+    vulkan-radeon
+    libva-mesa-driver
 )
 
 # --- Define Install Fn ---
