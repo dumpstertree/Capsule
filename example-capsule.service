@@ -1,7 +1,7 @@
 [Unit]
 Description=Opening Capsule
-After=network.target systemd-logind.service user@1000.service
-Requires=user@1000.service
+After=pipewire-pulse.service pipewire-pulse.socket pipewire.service pipewire.socket wirep>
+Requires=pipewire-pulse.service pipewire-pulse.socket pipewire.service pipewire.socket wi>
 
 [Service]
 Type=simple
@@ -9,4 +9,4 @@ ExecStart=/Capsule/start-stream2.sh
 Restart=always
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
