@@ -1,0 +1,12 @@
+[Unit]
+Description=Opening Capsule
+After=network.target systemd-logind.service user@1000.service
+Requires=user@1000.service
+
+[Service]
+Type=simple
+ExecStart=/Capsule/start-stream2.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
