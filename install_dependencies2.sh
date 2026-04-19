@@ -48,6 +48,7 @@ BASE_PACKAGES=(
     mesa 
     vulkan-radeon
     libva-mesa-driver
+    steam
 )
 
 # --- Define Install Fn ---
