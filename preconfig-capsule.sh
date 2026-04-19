@@ -1,5 +1,5 @@
 # make sure systemd can call any script in the repo
-chmod -R +x /Capsule
+chmod -R 777 /Capsule
 
 # copy example service into folder
 cp /Capsule/example-capsule.service /etc/systemd/system/capsule.service
