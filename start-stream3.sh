@@ -3,6 +3,7 @@ set -e
 
 killall -q sunshine || true
 killall -q Xorg     || true
+killall -q openbox  || true
 
 
 # /sys fix - requires lxc.mount.auto = sys:rw (already set)
