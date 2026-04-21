@@ -24,4 +24,4 @@ cp /Capsule/example-capsule.service /usr/lib/systemd/user/capsule.service
 #systemctl --user daemon-reload
 
 # enable now and in the future
-systemctl --user enable capsule.service
+runuser -u gamer -- systemctl --user enable capsule.service
