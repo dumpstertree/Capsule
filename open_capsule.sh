@@ -7,6 +7,9 @@ sh /Capsule/install_dependencies2.sh
 echo "Setting up Sunshine"
 sh /Capsule/preconfig-sunshine.sh
 
+echo "Setting up Audio"
+sh /Capsule/preconfig-audio.sh
+
 echo "Setting up XOrg"
 sh /Capsule/preconfig-xorg.sh
 
