@@ -21,7 +21,7 @@ chown -R gamer:gamer /home/gamer/.config/systemd
 cp /Capsule/example-capsule.service /usr/lib/systemd/user/capsule.service
 
 #reload daemons before start
-systemctl --user daemon-reload
+#systemctl --user daemon-reload
 
 # enable now and in the future
-systemctl --user enable --now capsule.service
+systemctl --user enable capsule.service
