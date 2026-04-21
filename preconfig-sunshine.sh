@@ -26,7 +26,7 @@ runuser -u gamer -- sunshine --creds gamer gamer
 systemctl daemon-reload
 
 # Enable for future reloads
-systemctl enable --now avahi-daemon
+systemctl enable avahi-daemon
 
 # Start
 #systemctl start avahi-daemon
