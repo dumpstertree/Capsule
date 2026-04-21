@@ -20,7 +20,7 @@ sleep 2
 sleep 2
 
 # start dbus session and run everything inside it
-dbus-run-session -- bash -c '
+runuser -u gamer -- dbus-run-session -- bash -c '
 
 export DISPLAY=:0
 export SUNSHINE_CAPTURE=x11
