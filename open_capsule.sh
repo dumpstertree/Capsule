@@ -15,3 +15,6 @@ sh /Capsule/preconfig-xorg.sh
 
 echo "Setting up Capsule"
 sh /Capsule/preconfig-capsule.sh
+
+echo "Rebooting"
+reboot
