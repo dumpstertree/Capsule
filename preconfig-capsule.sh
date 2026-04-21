@@ -17,11 +17,16 @@ chmod -R 777 /Capsule
 mkdir -p /home/gamer/.config/systemd/user/default.target.wants
 chown -R gamer:gamer /home/gamer/.config/systemd
 
-#copy example service to target
-cp /Capsule/example-capsule.service /usr/lib/systemd/user/capsule.service
+#copy example host service to target
+cp /Capsule/example-capsule-host.service /etc/systemd/system/capsule-host.service
 
-#reload daemons before start
-#systemctl --user daemon-reload
+# enable now and in the future
+systemctl enable capsule-host.service
+
+#copy example user service to target
+cp /Capsule/example-capsule.service /usr/lib/systemd/user/capsule.service
 
 # enable now and in the future
 runuser -u gamer -- systemctl --user enable capsule.service
+
+
