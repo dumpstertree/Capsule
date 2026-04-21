@@ -1,0 +1,12 @@
+[Unit]
+Description=Capsule Host Setup
+DefaultDependencies=no
+After=sysinit.target systemd-udevd.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/Capsule/start-host.sh
+
+[Install]
+WantedBy=multi-user.target
