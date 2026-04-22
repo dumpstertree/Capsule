@@ -1,7 +1,7 @@
 [Unit]
 Description=Opening Capsule
-After=pipewire-pulse.service pipewire.service wireplumber.service
-Requires=pipewire-pulse.service pipewire.service wireplumber.service
+After=pipewire-pulse.service pipewire.service wireplumber.service capsule-host.service 
+Requires=pipewire-pulse.service pipewire.service wireplumber.service capsule-host.service
 
 [Service]
 Type=simple
