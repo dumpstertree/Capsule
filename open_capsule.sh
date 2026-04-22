@@ -34,6 +34,12 @@ fi
 echo "Installing All Dependencies"
 sh /Capsule/install_dependencies2.sh
 
+echo "Setting up XOrg on Host"
+sh /Capsule/preconfig-xorg.sh
+
+echo "Setting up Capsule on Host"
+sh /Capsule/preconfig-capsule-host.sh
+    
 echo "Installing Users"
 for i in $(seq 1 "$USER_COUNT"); do
 
@@ -48,11 +54,11 @@ for i in $(seq 1 "$USER_COUNT"); do
     
     echo "Setting up Audio for user $i of $USER_COUNT"
     sh /Capsule/preconfig-audio.sh
-
-    echo "Setting up XOrg"
-    sh /Capsule/preconfig-xorg.sh
 done
 
-echo "Rebooting"
+echo "Completed!"
+echo "First launch may take a while to appear on Moonlight"
+echo "Services will start after reboot"
+
 reboot
 
