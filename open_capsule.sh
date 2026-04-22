@@ -30,6 +30,8 @@ if ! [[ "$USER_COUNT" =~ ^[1-9][0-9]*$ ]]; then
     exit 1
 fi
 
+# allow all files access to capsule
+chmod -R 777 /Capsule
 
 echo "Installing All Dependencies"
 sh /Capsule/install_dependencies2.sh
@@ -48,12 +50,12 @@ for i in $(seq 1 "$USER_COUNT"); do
 
     echo "Setting up Sunshine for user $i of $USER_COUNT"
     sh /Capsule/preconfig-sunshine.sh
+
+    echo "Setting up Audio for user $i of $USER_COUNT"
+    sh /Capsule/preconfig-audio.sh
     
     echo "Setting up Sunshine for user $i of $USER_COUNT"
     sh /Capsule/preconfig-capsule.sh
-    
-    echo "Setting up Audio for user $i of $USER_COUNT"
-    sh /Capsule/preconfig-audio.sh
 done
 
 echo "Completed!"
