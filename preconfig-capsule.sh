@@ -14,9 +14,7 @@ chmod -R 777 /Capsule
 #systemctl start capsule.service
 
 # create the service target directory
-mkdir -p /home/gamer/.config/systemd/user/default.target.wants
-chown -R gamer:gamer /home/gamer/.config/systemd
-
+#mkdir -p /home/gamer/.config/systemd/user/default.target.wants
 #copy example host service to target
 cp /Capsule/example-capsule-host.service /etc/systemd/system/capsule-host.service
 
@@ -27,6 +25,7 @@ systemctl enable capsule-host.service
 cp /Capsule/example-capsule.service /usr/lib/systemd/user/capsule.service
 
 # enable now and in the future
-runuser -u gamer -- systemctl --user enable capsule.service
-
+mkdir -p /home/gamer/.config/systemd/user/default.target.wants
+ln -sf /usr/lib/systemd/user/capsule.service /home/gamer/.config/systemd/user/default.target.wants/capsule.service
+chown -R gamer:gamer /home/gamer/.config
 
