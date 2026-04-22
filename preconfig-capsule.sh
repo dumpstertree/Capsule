@@ -21,11 +21,37 @@
 # enable now and in the future
 #systemctl enable capsule-host.service
 
+# --- Helpers ---
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+log()   { echo -e "${GREEN}[SETUP]${NC} $1"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
+error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
+info()  { echo -e "${BLUE}[INFO]${NC} $1"; }
+
+if [ -z "$1" ]; then
+    echo "Error: username argument required" >&2
+    echo "Usage: $0 <username>" >&2
+    exit 1
+fi
+
+USERNAME="$1"
+USER_HOME="/home/$USERNAME"
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Error: must be run as root" >&2
+    exit 1
+fi
+
 #copy example user service to target
 cp /Capsule/example-capsule.service /usr/lib/systemd/user/capsule.service
 
 # enable now and in the future
-mkdir -p /home/gamer/.config/systemd/user/default.target.wants
-ln -sf /usr/lib/systemd/user/capsule.service /home/gamer/.config/systemd/user/default.target.wants/capsule.service
-chown -R gamer:gamer /home/gamer/.config
+mkdir -p $USER_HOME/.config/systemd/user/default.target.wants
+ln -sf /usr/lib/systemd/user/capsule.service $USER_HOME/.config/systemd/user/default.target.wants/capsule.service
+chown -R $USERNAME:$USERNAME $USER_HOME/.config
 
