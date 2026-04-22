@@ -49,7 +49,7 @@ for i in $(seq 1 "$USER_COUNT"); do
     sh /Capsule/create_user.sh "gamer$i"
 
     echo "Setting up Sunshine for user $i of $USER_COUNT"
-    sh /Capsule/preconfig-sunshine.sh "gamer$i" "$1"
+    sh /Capsule/preconfig-sunshine.sh "gamer$i" "$i"
 
     echo "Setting up Audio for user $i of $USER_COUNT"
     sh /Capsule/preconfig-audio.sh "gamer$i"
