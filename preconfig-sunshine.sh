@@ -10,6 +10,21 @@ warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 info()  { echo -e "${BLUE}[INFO]${NC} $1"; }
 
+if [ -z "$1" ]; then
+    echo "Error: username argument required" >&2
+    echo "Usage: $0 <username>" >&2
+    exit 1
+fi
+
+USERNAME="$1"
+USER_HOME="/home/$USERNAME"
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Error: must be run as root" >&2
+    exit 1
+fi
+
+
 # Create 
 mkdir -p /home/gamer/.config/sunshine/
 
@@ -17,10 +32,10 @@ mkdir -p /home/gamer/.config/sunshine/
 cp /Capsule/example-sunshine.conf /home/gamer/.config/sunshine/sunshine.conf
 
 # Give access to newly created folder and files
-chown -R gamer /home/gamer/.config/sunshine/
+chown -R gamer $USER_HOME/.config/sunshine/
 
 # Setup the credentials 
-runuser -u gamer -- sunshine --creds gamer gamer
+runuser -u $USERNAME -- sunshine --creds capsule capsule
 
 # Reload daemon with new entries
 systemctl daemon-reload
