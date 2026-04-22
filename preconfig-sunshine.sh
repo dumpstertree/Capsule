@@ -26,13 +26,13 @@ fi
 
 
 # Create 
-mkdir -p /home/gamer/.config/sunshine/
+mkdir -p $USER_HOME/.config/sunshine/
 
 # Copy example conf to directory
-cp /Capsule/example-sunshine.conf /home/gamer/.config/sunshine/sunshine.conf
+cp /Capsule/example-sunshine.conf $USER_HOME/.config/sunshine/sunshine.conf
 
 # Give access to newly created folder and files
-chown -R gamer $USER_HOME/.config/sunshine/
+chown -R $USERNAME $USER_HOME/.config/sunshine/
 
 # Setup the credentials 
 runuser -u $USERNAME -- sunshine --creds capsule capsule
