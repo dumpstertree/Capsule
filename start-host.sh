@@ -7,5 +7,6 @@ udevadm settle
 
 # start dummy Xorg on :0 this needs to not be hardcoded
 Xorg :0 -config ./xorg.conf -noreset -novtswitch &
+Xorg :1 -config ./xorg.conf -noreset -novtswitch &
 sleep 2
 
