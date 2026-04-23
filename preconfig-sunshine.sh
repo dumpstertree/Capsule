@@ -50,13 +50,13 @@ MIC=$(( BASE_MIC      + OFFSET ))
 RTSP=$(( BASE_RTSP    + OFFSET ))
 
 log "Configuring Sunshine for $USERNAME (index=$INDEX, offset=$OFFSET)"
-info "  HTTP  port: $PORT"
-info "  HTTPS port: $HTTPS"
-info "  Video port: $VIDEO"
-info "  Control port: $CONTROL"
-info "  Audio port: $AUDIO"
-info "  Mic port: $MIC"
-info "  RTSP port: $RTSP"
+info "port: $PORT"
+#info "  HTTPS port: $HTTPS"
+#info "  Video port: $VIDEO"
+#info "  Control port: $CONTROL"
+#info "  Audio port: $AUDIO"
+#info "  Mic port: $MIC"
+#info "  RTSP port: $RTSP"
 
 # Create config dir
 mkdir -p "$USER_HOME/.config/sunshine/"
