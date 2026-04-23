@@ -3,5 +3,6 @@ openbox &
 sleep 1
 
 # start app
-steam -bigpicture -fulldesktopres &
+#steam -bigpicture -fulldesktopres &
+firefox
 sleep 1
