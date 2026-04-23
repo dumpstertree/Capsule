@@ -76,3 +76,8 @@ systemctl daemon-reload
 systemctl enable avahi-daemon
 
 log "Sunshine configured for $USERNAME on port offset +$OFFSET"
+
+mkdir -p $USER_HOME/.config/systemd/user/default.target.wants
+ln -sf /usr/lib/systemd/user/sunshine.service $USER_HOME/.config/systemd/user/default.target.wants/sunshine.service
+chown -R $USERNAME:$USERNAME $USER_HOME/.config
+
