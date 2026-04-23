@@ -40,15 +40,21 @@ if [ -z "$1" ]; then
 fi
 
 USERNAME="$1"
+INDEX="$2"
 USER_HOME="/home/$USERNAME"
 
+if ! [[ "$INDEX" =~ ^[0-9]+$ ]]; then
+    error "Index must be a non-negative integer"
+fi
+
 if [ "$(id -u)" -ne 0 ]; then
-    echo "Error: must be run as root" >&2
-    exit 1
+    error "Must be run as root"
 fi
 
 #copy example user service to target
 cp /Capsule/example-capsule.service /usr/lib/systemd/user/capsule.service
+
+sed -i "s|ExecStart=.*start-stream3.sh.*|ExecStart=/Capsule/start-stream3.sh $INDEX|" /usr/lib/systemd/user/capsule.service
 
 # enable now and in the future
 mkdir -p $USER_HOME/.config/systemd/user/default.target.wants
