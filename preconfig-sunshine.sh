@@ -32,22 +32,11 @@ fi
 
 # Sunshine default base ports
 BASE_PORT=47989          # HTTP web UI
-BASE_HTTPS=47984         # HTTPS
-BASE_VIDEO=47998         # video stream
-BASE_CONTROL=47999       # control stream
-BASE_AUDIO=48000         # audio stream
-BASE_MIC=48002           # microphone
-BASE_RTSP=48010          # RTSP
 
 OFFSET=$(( INDEX * 1000 ))
 
-PORT=$(( BASE_PORT    + OFFSET ))
-HTTPS=$(( BASE_HTTPS  + OFFSET ))
-VIDEO=$(( BASE_VIDEO  + OFFSET ))
-CONTROL=$(( BASE_CONTROL + OFFSET ))
-AUDIO=$(( BASE_AUDIO  + OFFSET ))
-MIC=$(( BASE_MIC      + OFFSET ))
-RTSP=$(( BASE_RTSP    + OFFSET ))
+PORT=$(( BASE_PORT + OFFSET ))
+
 
 log "Configuring Sunshine for $USERNAME (index=$INDEX, offset=$OFFSET)"
 info "port: $PORT"
