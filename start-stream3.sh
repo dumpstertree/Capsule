@@ -19,11 +19,13 @@ set -e
 #xrandr --output DUMMY0 --primary
 #sleep 2
 
+INDEX="$1"
+
 # start dbus session and run everything inside it
 dbus-run-session -- bash -c '
 
-export DISPLAY=:0
-export SUNSHINE_CAPTURE=x11
+DISPLAY_NUM=":$INDEX"
+#export SUNSHINE_CAPTURE=x11
 
 # allow local access to X (prevents auth issues)
 xhost +local: >/dev/null 2>&1
