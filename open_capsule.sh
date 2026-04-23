@@ -55,7 +55,7 @@ for i in $(seq 1 "$USER_COUNT"); do
     sh /Capsule/preconfig-audio.sh "gamer$i"
     
     echo "Setting up Sunshine for user $i of $USER_COUNT"
-    sh /Capsule/preconfig-capsule.sh "gamer$i"
+    sh /Capsule/preconfig-capsule.sh "gamer$i" "$i"
 done
 
 echo "Completed!"
