@@ -43,7 +43,7 @@ echo "Setting up Capsule on Host"
 sh /Capsule/preconfig-capsule-host.sh
     
 echo "Installing Users"
-for i in $(seq 1 "$USER_COUNT"); do
+for i in $(seq 0 $(( USER_COUNT - 1 ))); do
 
     echo "Creating user $i of $USER_COUNT"
     sh /Capsule/create_user.sh "gamer$i"
