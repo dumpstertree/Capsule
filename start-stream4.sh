@@ -18,8 +18,6 @@ fi
 
 # start dbus session and run everything inside it
 dbus-run-session -- bash -c '
-# start dbus session and run everything inside it
-dbus-run-session -- bash -c '
 
 export DISPLAY=:$0
 export XAUTHORITY=/root/.Xauthority
