@@ -1,8 +1,23 @@
 #!/bin/bash
 set -e
 
-INDEX="$0"
+CONFIG_FILE="$HOME/capsule.config"
 
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "Missing config file: $CONFIG_FILE"
+    exit 1
+fi
+
+# read first line and trim whitespace/newlines
+INDEX="$(head -n 1 "$CONFIG_FILE" | xargs)"
+
+if [[ -z "$INDEX" ]]; then
+    echo "Display index missing in $CONFIG_FILE"
+    exit 1
+fi
+
+# start dbus session and run everything inside it
+dbus-run-session -- bash -c '
 # start dbus session and run everything inside it
 dbus-run-session -- bash -c '
 
