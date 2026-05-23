@@ -5,7 +5,7 @@ Requires=pipewire-pulse.service pipewire.service wireplumber.service
 
 [Service]
 Type=simple
-ExecStart=/Capsule/start-stream3.sh 1
+ExecStart=/Capsule/start-stream4.sh
 Restart=always
 
 [Install]
