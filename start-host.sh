@@ -21,11 +21,6 @@ udevadm settle
 
 XORG_CONFIG="./xorg.conf"
 
-if [[ ! -f "$XORG_CONFIG" ]]; then
-    echo "Missing Xorg config: $XORG_CONFIG"
-    exit 1
-fi
-
 echo "Searching for capsule users..."
 
 for HOME_DIR in /home/*; do
