@@ -46,7 +46,7 @@ echo "Installing Users"
 for i in $(seq 0 $(( USER_COUNT - 1 ))); do
 
     echo "Creating user $i of $USER_COUNT"
-    sh /Capsule/create_user.sh "gamer$i"
+    sh /Capsule/create_user.sh "gamer$i" "$i"
 
     echo "Setting up Sunshine for user $i of $USER_COUNT"
     sh /Capsule/preconfig-sunshine.sh "gamer$i" "$i"
