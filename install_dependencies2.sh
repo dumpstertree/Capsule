@@ -17,6 +17,14 @@ if ! grep -q "^\[lizardbyte\]" /etc/pacman.conf; then
     printf "\n[lizardbyte]\nSigLevel = Optional\nServer = https://github.com/LizardByte/pacman-repo/releases/latest/download\n" >> /etc/pacman.conf
 fi
 
+# --- Adding Sunshine Repo
+log "Checking CachyOS repository..."
+if ! grep -q "^\[cachyos\]" /etc/pacman.conf; then
+    log "Enabling CachyOS..."
+    printf "\n[cachyos]\nSigLevel = Optional TrustAll\nServer = https://mirror.cachyos.org/repo/$arch\n" >> /etc/pacman.conf
+fi
+
+
 # --- Enable multilib ---
 log "Checking multilib repository..."
 if ! grep -q "^\[multilib\]" /etc/pacman.conf; then
@@ -32,7 +40,6 @@ pacman -Syu --noconfirm
 # --- All Packages
 BASE_PACKAGES=(
     nano
-    sunshine
     xf86-video-dummy
     xf86-input-libinput
     xorg-server
@@ -45,11 +52,15 @@ BASE_PACKAGES=(
     wireplumber
     openbox
     xf86-video-amdgpu 
-    mesa 
-    vulkan-radeon
     libva-mesa-driver
-    #steam
-    firefox
+    steam
+    #mesa
+    vulkan-radeon
+    #cachyos
+    cachyos-mesa 
+    cachyos-ffmpeg
+    #lizardbyte
+    sunshine
 )
 
 # --- Define Install Fn ---
