@@ -16,9 +16,6 @@ if [[ -z "$INDEX" ]]; then
     exit 1
 fi
 
-# start dbus session and run everything inside it
-#dbus-run-session -- bash -c '
-
 #export DISPLAY=:$0
 export DISPLAY=:$INDEX
 export XAUTHORITY=/root/.Xauthority
@@ -42,4 +39,3 @@ SUNSHINE_PID=$!
 
 # wait for either to exit
 wait -n $INJECT_PID $SUNSHINE_PID
-#' "$INDEX"
