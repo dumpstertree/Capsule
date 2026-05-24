@@ -9,8 +9,14 @@ if ! [[ "$USER_COUNT" =~ ^[1-9][0-9]*$ ]]; then
     exit 1
 fi
 
-echo "GPU Index"
+echo "GPU Index?"
 read -r GPU_INDEX
+
+echo "Windows Games path?"
+read -r GAMES_PATH
+
+echo "Save data backup path?"
+read -r SAVE_DATA_BACKUP_PATH
 
 echo "SteamGridDB API Key?"
 read -r STEAMGRIDDB_API_KEY
