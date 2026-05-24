@@ -70,10 +70,10 @@ chown -R "$USERNAME" "$USER_HOME/.config/sunshine/"
 runuser -u "$USERNAME" -- sunshine --creds capsule capsule
 
 # Reload daemon with new entries
-#systemctl daemon-reload
+systemctl daemon-reload
 
 # Enable for future reloads
-#systemctl enable avahi-daemon
+systemctl enable avahi-daemon
 
 log "Sunshine configured for $USERNAME on port offset +$OFFSET"
 
