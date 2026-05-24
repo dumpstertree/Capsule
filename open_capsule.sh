@@ -1,24 +1,3 @@
-#echo "Installing User"
-#sh /Capsule/create_user.sh
-
-#echo "Installing All Dependencies"
-#sh /Capsule/install_dependencies2.sh
-
-#echo "Setting up Sunshine"
-#sh /Capsule/preconfig-sunshine.sh
-
-#echo "Setting up XOrg"
-#sh /Capsule/preconfig-xorg.sh
-
-#echo "Setting up Capsule"
-#sh /Capsule/preconfig-capsule.sh
-
-#echo "Setting up Audio"
-#sh /Capsule/preconfig-audio.sh
-
-#echo "Rebooting"
-#reboot
-
 #!/bin/bash
 set -e
 
@@ -29,6 +8,12 @@ if ! [[ "$USER_COUNT" =~ ^[1-9][0-9]*$ ]]; then
     echo "Error: please enter a valid number greater than 0" >&2
     exit 1
 fi
+
+echo "GPU Index"
+read -r GPU_INDEX
+
+echo "SteamGridDB API Key?"
+read -r STEAMGRIDDB_API_KEY
 
 # allow all files access to capsule
 chmod -R 777 /Capsule
