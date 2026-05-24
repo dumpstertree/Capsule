@@ -68,6 +68,9 @@ for i in $(seq 0 $(( USER_COUNT - 1 ))); do
     sh /Capsule/preconfig-capsule.sh "gamer$i" "$i"
 done
 
+echo "Generating Shortcuts"
+sh /Capsule/generate-shortcuts.sh
+
 echo "Completed!"
 echo "First launch may take a while to appear on Moonlight"
 echo "Services will start after reboot"
