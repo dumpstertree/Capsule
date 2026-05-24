@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+CONFIG_FILE="/capsule-host.config"
+
 echo "Open how many Capsules?"
 read -r USER_COUNT
 
@@ -9,20 +11,34 @@ if ! [[ "$USER_COUNT" =~ ^[1-9][0-9]*$ ]]; then
     exit 1
 fi
 
+# used for setting up our xorg instance
 echo "GPU Index?"
 read -r GPU_INDEX
 
+# where to read games from - only windows are currently supported
 echo "Windows Games path?"
 read -r GAMES_PATH
 
-echo "Save data backup path?"
-read -r SAVE_DATA_BACKUP_PATH
+# used to save any data to be reused between instances
+echo "Where to save save backups and game metadata"
+read -r PERSISTENT_DATA_PATH
 
+# used in sunshine for access to the webui
 echo "Whitelisted sunshine IPs"
 read -r WHITELISTED_SUNSHINE_IPS
 
+# used for collecting metadata
 echo "SteamGridDB API Key?"
 read -r STEAMGRIDDB_API_KEY
+
+# create the config file for the host
+cat > "$CONFIG_FILE" <<EOF
+$GPU_INDEX
+$GAMES_PATH
+$PERSISTENT_DATA_PATH
+$WHITELISTED_SUNSHINE_IPS
+$STEAMGRIDDB_API_KEY
+EOF
 
 # allow all files access to capsule
 chmod -R 777 /Capsule
