@@ -18,6 +18,9 @@ read -r GAMES_PATH
 echo "Save data backup path?"
 read -r SAVE_DATA_BACKUP_PATH
 
+echo "Whitelisted sunshine IPs"
+read -r WHITELISTED_SUNSHINE_IPS
+
 echo "SteamGridDB API Key?"
 read -r STEAMGRIDDB_API_KEY
 
