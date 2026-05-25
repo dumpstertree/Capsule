@@ -22,6 +22,14 @@ USERNAME="$1"
 INDEX="$2"
 USER_HOME="/home/$USERNAME"
 
+CONFIG_FILE="/Capsule/capsule-host.config"
+GPU_INDEX="$(sed -n '1p' "$CONFIG_FILE" | xargs)"
+GAMES_PATH="$(sed -n '2p' "$CONFIG_FILE" | xargs)"
+PERSISTENT_DATA_PATH="$(sed -n '3p' "$CONFIG_FILE" | xargs)"
+WHITELISTED_SUNSHINE_IPS="$(sed -n '4p' "$CONFIG_FILE" | xargs)"
+STEAMGRIDDB_API_KEY="$(sed -n '5p' "$CONFIG_FILE" | xargs)"
+
+
 if ! [[ "$INDEX" =~ ^[0-9]+$ ]]; then
     error "Index must be a non-negative integer"
 fi
@@ -32,20 +40,12 @@ fi
 
 # Sunshine default base ports
 BASE_PORT=47989          # HTTP web UI
-
 OFFSET=$(( INDEX * 1000 ))
-
 PORT=$(( BASE_PORT + OFFSET ))
 
 
 log "Configuring Sunshine for $USERNAME (index=$INDEX, offset=$OFFSET)"
 info "port: $PORT"
-#info "  HTTPS port: $HTTPS"
-#info "  Video port: $VIDEO"
-#info "  Control port: $CONTROL"
-#info "  Audio port: $AUDIO"
-#info "  Mic port: $MIC"
-#info "  RTSP port: $RTSP"
 
 # Create config dir
 mkdir -p "$USER_HOME/.config/sunshine/"
@@ -55,13 +55,12 @@ cp /Capsule/example-sunshine.conf "$USER_HOME/.config/sunshine/sunshine.conf"
 
 # Patch ports into the config
 CONF="$USER_HOME/.config/sunshine/sunshine.conf"
-sed -i "s/^port\s*=.*/port = $PORT/"         "$CONF"
-sed -i "s/^https_port\s*=.*/https_port = $HTTPS/" "$CONF"
-sed -i "s/^video_port\s*=.*/video_port = $VIDEO/" "$CONF"
-sed -i "s/^control_port\s*=.*/control_port = $CONTROL/" "$CONF"
-sed -i "s/^audio_port\s*=.*/audio_port = $AUDIO/"   "$CONF"
-sed -i "s/^mic_port\s*=.*/mic_port = $MIC/"         "$CONF"
-sed -i "s/^rtsp_port\s*=.*/rtsp_port = $RTSP/"      "$CONF"
+
+# update the port
+sed -i "s/^port\s*=.*/port = $PORT/" "$CONF"
+
+#update the csrf whitelist
+sed -i "s|^csrf_allowed_origins\s*=.*|csrf_allowed_origins = $WHITELISTED_SUNSHINE_IPS|" "$CONF"
 
 # Give access to newly created folder and files
 chown -R "$USERNAME" "$USER_HOME/.config/sunshine/"
@@ -76,7 +75,3 @@ systemctl daemon-reload
 systemctl enable avahi-daemon
 
 log "Sunshine configured for $USERNAME on port offset +$OFFSET"
-
-#mkdir -p $USER_HOME/.config/systemd/user/default.target.wants
-#ln -sf /usr/lib/systemd/user/sunshine.service $USER_HOME/.config/systemd/user/default.target.wants/sunshine.service
-#chown -R $USERNAME:$USERNAME $USER_HOME/.config
