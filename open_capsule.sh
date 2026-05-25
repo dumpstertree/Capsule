@@ -71,6 +71,9 @@ done
 echo "Generating Shortcuts"
 sh /Capsule/generate-shortcuts.sh
 
+echo "Restroring an save data"
+sh /Capsule/resore-data.sh
+
 echo "Completed!"
 echo "First launch may take a while to appear on Moonlight"
 echo "Services will start after reboot"
