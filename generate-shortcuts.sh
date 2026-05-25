@@ -18,10 +18,10 @@ if [[ "$(id -u)" -ne 0 ]]; then
 fi
 
 ###############################################################################
-# INSTALL PACKAGES
+# INSTALL DEPENDENCIES
 ###############################################################################
 
-echo "Installing packages..."
+echo "Installing dependencies..."
 
 pacman -Sy --noconfirm \
     python \
@@ -34,19 +34,20 @@ pacman -Sy --noconfirm \
 ###############################################################################
 
 if [[ ! -d "$VENV_DIR" ]]; then
-    echo "Creating venv..."
+    echo "Creating virtual environment..."
     python -m venv "$VENV_DIR"
 fi
 
 source "$VENV_DIR/bin/activate"
 
 ###############################################################################
-# INSTALL PYTHON LIBRARIES
+# INSTALL PYTHON PACKAGES
 ###############################################################################
 
-echo "Installing python libraries..."
+echo "Installing Python packages..."
 
 pip install --upgrade pip
+
 pip install \
     vdf \
     requests \
@@ -62,7 +63,7 @@ echo "Stopping Steam..."
 pkill steam || true
 pkill steamwebhelper || true
 
-sleep 2
+sleep 3
 
 ###############################################################################
 # RUN GENERATOR
@@ -76,7 +77,4 @@ echo "Running generator..."
 # DONE
 ###############################################################################
 
-echo ""
-echo "Done."
-echo ""
-echo "Restart Steam."
+echo "Generating Done"
