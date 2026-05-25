@@ -66,6 +66,9 @@ for i in $(seq 0 $(( USER_COUNT - 1 ))); do
     
     echo "Setting up Sunshine for user $i of $USER_COUNT"
     sh /Capsule/preconfig-capsule.sh "capsule$i" "$i"
+
+    echo "Setting up Proton for user $i of $USER_COUNT"
+    sh /Capsule/preconfig-proton.sh "capsule$i"
 done
 
 echo "Generating Shortcuts"
