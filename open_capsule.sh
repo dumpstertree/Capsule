@@ -56,16 +56,16 @@ echo "Installing Users"
 for i in $(seq 0 $(( USER_COUNT - 1 ))); do
 
     echo "Creating user $i of $USER_COUNT"
-    sh /Capsule/create_user.sh "gamer$i" "$i"
+    sh /Capsule/create_user.sh "capsule$i" "$i"
 
     echo "Setting up Sunshine for user $i of $USER_COUNT"
-    sh /Capsule/preconfig-sunshine.sh "gamer$i" "$i"
+    sh /Capsule/preconfig-sunshine.sh "capsule$i" "$i"
 
     echo "Setting up Audio for user $i of $USER_COUNT"
-    sh /Capsule/preconfig-audio.sh "gamer$i"
+    sh /Capsule/preconfig-audio.sh "capsule$i"
     
     echo "Setting up Sunshine for user $i of $USER_COUNT"
-    sh /Capsule/preconfig-capsule.sh "gamer$i" "$i"
+    sh /Capsule/preconfig-capsule.sh "capsule$i" "$i"
 done
 
 echo "Generating Shortcuts"
