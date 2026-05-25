@@ -72,7 +72,7 @@ echo "Generating Shortcuts"
 sh /Capsule/generate-shortcuts.sh
 
 echo "Restroring an save data"
-sh /Capsule/resore-data.sh
+sh /Capsule/restore-data.sh
 
 echo "Completed!"
 echo "First launch may take a while to appear on Moonlight"
