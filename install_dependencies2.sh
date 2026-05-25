@@ -18,11 +18,11 @@ if ! grep -q "^\[lizardbyte\]" /etc/pacman.conf; then
 fi
 
 # --- Adding Sunshine Repo
-log "Checking CachyOS repository..."
-if ! grep -q "^\[cachyos\]" /etc/pacman.conf; then
-    log "Enabling CachyOS..."
-    printf "\n[cachyos]\nSigLevel = Optional TrustAll\nServer = https://mirror.cachyos.org/repo/$arch\n" >> /etc/pacman.conf
-fi
+# log "Checking CachyOS repository..."
+# if ! grep -q "^\[cachyos\]" /etc/pacman.conf; then
+#     log "Enabling CachyOS..."
+#     printf "\n[cachyos]\nSigLevel = Optional TrustAll\nServer = https://mirror.cachyos.org/repo/$arch\n" >> /etc/pacman.conf
+# fi
 
 
 # --- Enable multilib ---
@@ -54,13 +54,15 @@ BASE_PACKAGES=(
     xf86-video-amdgpu 
     libva-mesa-driver
     steam
-    #mesa
+    mesa
     vulkan-radeon
     #cachyos
-    cachyos-mesa 
-    cachyos-ffmpeg
+    #cachyos-mesa 
+    #cachyos-ffmpeg
     #lizardbyte
     sunshine
+    protonup-qt
+    gamemode
 )
 
 # --- Define Install Fn ---
