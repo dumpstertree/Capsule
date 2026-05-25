@@ -16,6 +16,9 @@ if [[ -z "$INDEX" ]]; then
     exit 1
 fi
 
+# restore any save data
+sh /Capsule/restore-data.sh
+
 #export DISPLAY=:$0
 export DISPLAY=:$INDEX
 export XAUTHORITY=/root/.Xauthority
