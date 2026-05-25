@@ -61,7 +61,6 @@ BASE_PACKAGES=(
     #cachyos-ffmpeg
     #lizardbyte
     sunshine
-    protonup-qt
     gamemode
 )
 
