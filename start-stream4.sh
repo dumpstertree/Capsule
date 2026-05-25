@@ -17,7 +17,7 @@ if [[ -z "$INDEX" ]]; then
 fi
 
 # restore any save data
-sh /Capsule/restore-data.sh
+sh /Capsule/data-sync.sh
 
 #export DISPLAY=:$0
 export DISPLAY=:$INDEX
