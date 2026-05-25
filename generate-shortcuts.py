@@ -1,27 +1,76 @@
 #!/usr/bin/env python3
 
 from pathlib import Path
+import json
+import os
 import shutil
+import sys
 import zlib
+
 import requests
 import vdf
 
 from rapidfuzz import fuzz
 
 ###############################################################################
-# CONFIG
+# ARGS
 ###############################################################################
 
-GAMES_DIR = Path("/games/Microsoft_Windows")
+if len(sys.argv) < 4:
 
-STEAMGRIDDB_API_KEY = "PUT_API_KEY_HERE"
+    print("Usage:")
+    print("  generate-shortcuts.py <games_path> <persistent_data_path> <steamgriddb_api_key>")
+
+    sys.exit(1)
+
+GAMES_DIR = Path(sys.argv[1])
+
+PERSISTENT_DATA_PATH = Path(sys.argv[2])
+
+STEAMGRIDDB_API_KEY = sys.argv[3]
+
+###############################################################################
+# VALIDATION
+###############################################################################
+
+if not GAMES_DIR.exists():
+
+    print(f"Games path does not exist:")
+    print(f"  {GAMES_DIR}")
+
+    sys.exit(1)
+
+###############################################################################
+# PERSISTENT STORAGE
+###############################################################################
+
+METADATA_DIR = (
+    PERSISTENT_DATA_PATH /
+    "metadata"
+)
+
+ASSETS_DIR = (
+    PERSISTENT_DATA_PATH /
+    "assets"
+)
+
+METADATA_DIR.mkdir(
+    parents=True,
+    exist_ok=True
+)
+
+ASSETS_DIR.mkdir(
+    parents=True,
+    exist_ok=True
+)
 
 ###############################################################################
 # HELPERS
 ###############################################################################
 
 
-def normalize(text: str) -> str:
+def normalize(text: str):
+
     return (
         text.lower()
         .replace("_", " ")
@@ -37,15 +86,13 @@ def find_best_exe(game_dir: Path):
     if not exes:
         return None
 
-    game_name = normalize(game_dir.name)
-
     blacklist = [
         "setup",
         "uninstall",
-        "crash",
         "updater",
-        "config",
         "launcher",
+        "config",
+        "crash",
         "helper",
         "benchmark",
         "redist",
@@ -53,6 +100,8 @@ def find_best_exe(game_dir: Path):
         "vc_redist",
         "dxsetup",
     ]
+
+    game_name = normalize(game_dir.name)
 
     best_score = -1
     best_exe = None
@@ -64,7 +113,10 @@ def find_best_exe(game_dir: Path):
         if any(x in exe_name for x in blacklist):
             continue
 
-        score = fuzz.ratio(game_name, exe_name)
+        score = fuzz.ratio(
+            game_name,
+            exe_name
+        )
 
         if score > best_score:
             best_score = score
@@ -79,14 +131,69 @@ def find_best_exe(game_dir: Path):
     return best_exe
 
 
-def generate_appid(exe_path: str):
+###############################################################################
+# APPID
+###############################################################################
 
-    appid = zlib.crc32(exe_path.encode())
 
-    if appid > 0x7FFFFFFF:
-        appid -= 0x100000000
+def generate_shortcut_appid(appname: str, exe: str):
 
-    return abs(appid)
+    key = exe + appname
+
+    crc = zlib.crc32(
+        key.encode("utf-8")
+    ) | 0x80000000
+
+    if crc > 0x7FFFFFFF:
+        crc -= 0x100000000
+
+    return crc
+
+
+###############################################################################
+# METADATA
+###############################################################################
+
+
+def metadata_path(game_name):
+
+    return (
+        METADATA_DIR /
+        f"{game_name}.json"
+    )
+
+
+def load_existing_metadata(game_name):
+
+    path = metadata_path(game_name)
+
+    if not path.exists():
+        return None
+
+    try:
+
+        with open(path, "r") as f:
+            return json.load(f)
+
+    except Exception:
+
+        return None
+
+
+def save_metadata(
+    game_folder,
+    data
+):
+
+    output = metadata_path(game_folder)
+
+    with open(output, "w") as f:
+
+        json.dump(
+            data,
+            f,
+            indent=4
+        )
 
 
 ###############################################################################
@@ -95,6 +202,7 @@ def generate_appid(exe_path: str):
 
 
 def sgdb_headers():
+
     return {
         "Authorization": f"Bearer {STEAMGRIDDB_API_KEY}"
     }
@@ -128,6 +236,7 @@ def sgdb_search(game_name):
         return items[0]
 
     except Exception as e:
+
         print(f"  SteamGridDB search failed: {e}")
         return None
 
@@ -136,7 +245,10 @@ def download_image(url: str, output: Path):
 
     try:
 
-        r = requests.get(url, timeout=30)
+        r = requests.get(
+            url,
+            timeout=30
+        )
 
         if r.status_code != 200:
             return False
@@ -150,42 +262,49 @@ def download_image(url: str, output: Path):
         return False
 
 
-def fetch_artwork(game_name, appid, grid_dir: Path):
+def ensure_assets(
+    game_name,
+    unsigned_appid,
+    sgdb_id
+):
 
-    result = sgdb_search(game_name)
+    asset_dir = (
+        ASSETS_DIR /
+        str(unsigned_appid)
+    )
 
-    if not result:
-        print("  No SteamGridDB match")
-        return
+    asset_dir.mkdir(
+        parents=True,
+        exist_ok=True
+    )
 
-    game_id = result["id"]
-
-    print(f"  SteamGridDB Match: {result['name']}")
-
-    endpoints = [
+    targets = [
         (
-            f"https://www.steamgriddb.com/api/v2/grids/game/{game_id}?dimensions=600x900",
-            grid_dir / f"{appid}p.png",
-            "portrait"
+            "capsule",
+            f"https://www.steamgriddb.com/api/v2/grids/game/{sgdb_id}?dimensions=460x215",
+            asset_dir / "capsule.png"
         ),
         (
-            f"https://www.steamgriddb.com/api/v2/grids/game/{game_id}?dimensions=460x215",
-            grid_dir / f"{appid}.png",
-            "capsule"
+            "portrait",
+            f"https://www.steamgriddb.com/api/v2/grids/game/{sgdb_id}?dimensions=600x900",
+            asset_dir / "portrait.png"
         ),
         (
-            f"https://www.steamgriddb.com/api/v2/heroes/game/{game_id}",
-            grid_dir / f"{appid}_hero.png",
-            "hero"
+            "hero",
+            f"https://www.steamgriddb.com/api/v2/heroes/game/{sgdb_id}",
+            asset_dir / "hero.png"
         ),
         (
-            f"https://www.steamgriddb.com/api/v2/logos/game/{game_id}",
-            grid_dir / f"{appid}_logo.png",
-            "logo"
+            "logo",
+            f"https://www.steamgriddb.com/api/v2/logos/game/{sgdb_id}",
+            asset_dir / "logo.png"
         ),
     ]
 
-    for endpoint, output, kind in endpoints:
+    for label, endpoint, output in targets:
+
+        if output.exists():
+            continue
 
         try:
 
@@ -208,10 +327,54 @@ def fetch_artwork(game_name, appid, grid_dir: Path):
             image_url = items[0]["url"]
 
             if download_image(image_url, output):
-                print(f"    Downloaded {kind}")
+
+                print(f"  Downloaded {label}")
 
         except Exception as e:
-            print(f"    Failed {kind}: {e}")
+
+            print(f"  Failed {label}: {e}")
+
+    return asset_dir
+
+
+###############################################################################
+# COPY ARTWORK INTO STEAM GRID
+###############################################################################
+
+
+def apply_artwork_to_grid(
+    asset_dir,
+    grid_dir,
+    unsigned_appid
+):
+
+    mappings = [
+        (
+            asset_dir / "capsule.png",
+            grid_dir / f"{unsigned_appid}.png"
+        ),
+        (
+            asset_dir / "portrait.png",
+            grid_dir / f"{unsigned_appid}p.png"
+        ),
+        (
+            asset_dir / "hero.png",
+            grid_dir / f"{unsigned_appid}_hero.png"
+        ),
+        (
+            asset_dir / "logo.png",
+            grid_dir / f"{unsigned_appid}_logo.png"
+        ),
+    ]
+
+    for src, dst in mappings:
+
+        if src.exists():
+
+            shutil.copy2(
+                src,
+                dst
+            )
 
 
 ###############################################################################
@@ -287,6 +450,10 @@ for home_dir in Path("/home").iterdir():
 
     index = 0
 
+    ############################################################################
+    # PROCESS GAMES
+    ############################################################################
+
     for game_dir in sorted(GAMES_DIR.iterdir()):
 
         if not game_dir.is_dir():
@@ -301,32 +468,112 @@ for home_dir in Path("/home").iterdir():
             print("  No EXE found")
             continue
 
-        appid = generate_appid(str(exe))
-
-        compat_dir = (
-            home_dir /
-            ".steam/steam/steamapps/compatdata" /
-            str(appid)
+        existing_metadata = load_existing_metadata(
+            game_dir.name
         )
 
-        compat_dir.mkdir(
-            parents=True,
-            exist_ok=True
+        if existing_metadata:
+
+            print("  Existing metadata found")
+
+            shortcut_appid = existing_metadata[
+                "shortcut_appid"
+            ]
+
+            steam_appid = existing_metadata.get(
+                "steam_appid"
+            )
+
+            official_name = existing_metadata.get(
+                "official_name",
+                game_dir.name
+            )
+
+            sgdb_id = existing_metadata.get(
+                "steamgriddb_id"
+            )
+
+        else:
+
+            print("  Generating new metadata")
+
+            shortcut_appid = generate_shortcut_appid(
+                game_dir.name,
+                str(exe)
+            )
+
+            steam_appid = None
+            official_name = game_dir.name
+            sgdb_id = None
+
+            sgdb_result = sgdb_search(
+                game_dir.name
+            )
+
+            if sgdb_result:
+
+                steam_appid = sgdb_result.get(
+                    "steamAppId"
+                )
+
+                official_name = sgdb_result.get(
+                    "name",
+                    game_dir.name
+                )
+
+                sgdb_id = sgdb_result.get(
+                    "id"
+                )
+
+            metadata = {
+                "folder_name": game_dir.name,
+                "shortcut_appid": shortcut_appid,
+                "steam_appid": steam_appid,
+                "official_name": official_name,
+                "steamgriddb_id": sgdb_id,
+                "exe": str(exe)
+            }
+
+            save_metadata(
+                game_dir.name,
+                metadata
+            )
+
+        unsigned_appid = (
+            shortcut_appid &
+            0xFFFFFFFF
         )
 
-        launch_options = (
-            f'STEAM_COMPAT_DATA_PATH="{compat_dir}" '
-            f'STEAM_COMPAT_CLIENT_INSTALL_PATH="{home_dir}/.steam/steam" '
-            f'%command%'
-        )
+        ############################################################################
+        # ARTWORK
+        ############################################################################
+
+        if sgdb_id:
+
+            asset_dir = ensure_assets(
+                game_dir.name,
+                unsigned_appid,
+                sgdb_id
+            )
+
+            apply_artwork_to_grid(
+                asset_dir,
+                grid_dir,
+                unsigned_appid
+            )
+
+        ############################################################################
+        # SHORTCUT ENTRY
+        ############################################################################
 
         entries[str(index)] = {
-            "appname": game_dir.name,
+            "appid": shortcut_appid,
+            "appname": official_name,
             "exe": f'"{exe}"',
             "StartDir": str(game_dir),
             "icon": "",
             "ShortcutPath": "",
-            "LaunchOptions": launch_options,
+            "LaunchOptions": "%command%",
             "IsHidden": 0,
             "AllowDesktopConfig": 1,
             "AllowOverlay": 1,
@@ -341,13 +588,11 @@ for home_dir in Path("/home").iterdir():
             }
         }
 
-        fetch_artwork(
-            game_dir.name,
-            appid,
-            grid_dir
-        )
-
         index += 1
+
+    ############################################################################
+    # WRITE SHORTCUTS
+    ############################################################################
 
     shortcuts = {
         "shortcuts": entries
@@ -357,23 +602,67 @@ for home_dir in Path("/home").iterdir():
     print("Writing shortcuts.vdf")
 
     with open(shortcuts_file, "wb") as f:
-        vdf.binary_dump(shortcuts, f)
 
-    print("Validating VDF")
+        vdf.binary_dump(
+            shortcuts,
+            f
+        )
+
+    print("Validating shortcuts.vdf")
 
     with open(shortcuts_file, "rb") as f:
         vdf.binary_load(f)
 
-    shutil.chown(
-        shortcuts_file,
-        username,
-        username
+    ############################################################################
+    # FIX OWNERSHIP
+    ############################################################################
+
+    steam_root = (
+        home_dir /
+        ".steam"
     )
 
-    shutil.chown(
-        grid_dir,
-        username,
-        username
-    )
+    for root, dirs, files in os.walk(steam_root):
 
-    print("Done.")
+        try:
+            shutil.chown(
+                root,
+                username,
+                username
+            )
+        except:
+            pass
+
+        for d in dirs:
+
+            path = os.path.join(root, d)
+
+            try:
+                shutil.chown(
+                    path,
+                    username,
+                    username
+                )
+            except:
+                pass
+
+        for file in files:
+
+            path = os.path.join(root, file)
+
+            try:
+                shutil.chown(
+                    path,
+                    username,
+                    username
+                )
+            except:
+                pass
+
+    print("")
+    print("Finished.")
+
+print("")
+print("==================================================")
+print("All Users Processed")
+print("==================================================")
