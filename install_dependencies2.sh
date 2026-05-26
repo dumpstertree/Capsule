@@ -62,6 +62,7 @@ BASE_PACKAGES=(
     #lizardbyte
     sunshine
     gamemode
+    wget
 )
 
 # --- Define Install Fn ---
