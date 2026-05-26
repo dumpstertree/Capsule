@@ -6,7 +6,7 @@ set -e
 ###############################################################################
 
 VENV_DIR="/opt/capsule-steam-venv"
-CONFIG_FILE="/Capsule/capsule-host.config"
+CONFIG_FILE="/capsule-host.config"
 PYTHON_SCRIPT="/Capsule/generate-shortcuts.py"
 
 ###############################################################################
