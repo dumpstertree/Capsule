@@ -9,4 +9,4 @@ LATEST=$(curl -s https://api.github.com/repos/GloriousEggroll/proton-ge-custom/r
 
 wget "$LATEST"
 
-tar -xf GE-Proton*.tar.gz -C ~/.steam/root/compatibilitytools.d/
+tar -xf GE-Proton*.tar.gz -C $USER_HOME/.steam/root/compatibilitytools.d/
