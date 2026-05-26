@@ -22,7 +22,7 @@ USERNAME="$1"
 INDEX="$2"
 USER_HOME="/home/$USERNAME"
 
-CONFIG_FILE="/Capsule/capsule-host.config"
+CONFIG_FILE="/capsule-host.config"
 GPU_INDEX="$(sed -n '1p' "$CONFIG_FILE" | xargs)"
 GAMES_PATH="$(sed -n '2p' "$CONFIG_FILE" | xargs)"
 PERSISTENT_DATA_PATH="$(sed -n '3p' "$CONFIG_FILE" | xargs)"
