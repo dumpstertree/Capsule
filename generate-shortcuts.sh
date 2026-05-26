@@ -114,3 +114,6 @@ echo "Running generator..."
 
 echo ""
 echo "Generation Done"
+
+
+echo "TODO need to restore priviledge"
