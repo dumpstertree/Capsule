@@ -90,8 +90,9 @@ Consequences to plan around:
   SIGTERMs the previous owner, and inside a container (no real VTs) every
   auto-allocated server lands on `/dev/tty7` — so display `:1` kills display
   `:0` ~1s after startup (`Server terminated successfully (0)` in
-  `Xorg.0.log`). `start-host.sh` passes `-vt(7+index)` to each server;
-  `-novtswitch` alone does NOT prevent this.
+  `Xorg.0.log`). `start-host.sh` passes the BARE argument `vt(7+index)` to
+  each server (`-vt7` is NOT a valid option — Xorg exits at argument
+  parsing); `-novtswitch` alone does NOT prevent this.
 * **Dummy VideoRam:** the driver defaults to 4 MB of emulated VRAM, under the
   ~8.3 MB a 1920x1080 32bpp framebuffer needs. It must be set as the **bare**
   Device entry `VideoRam 65536` — dummy 0.4.x's option table only knows

@@ -75,7 +75,9 @@ for HOME_DIR in /home/*; do
     # VT ownership (VT_SETMODE), the kernel SIGTERMs the previous owner — and
     # in a container without real VTs, auto-allocation parks every server on
     # /dev/tty7, so each display silently kills the one before it. -novtswitch
-    # only prevents switching, not ownership. Assign tty(7+index) explicitly.
+    # only prevents switching, not ownership. Assign tty(7+index) explicitly
+    # via the BARE argument "vtN" (Linux Xorg parses it with sscanf("vt%2d");
+    # "-vtN" is NOT an option and makes Xorg exit at argument parsing).
     VT_NUM=$((7 + INDEX))
     if [ "$VT_NUM" -gt 63 ]; then
         warn "Index $INDEX exceeds VT range; reusing tty7 for $USERNAME"
@@ -87,7 +89,7 @@ for HOME_DIR in /home/*; do
         -config "$DISPLAY_XORG_CONFIG" \
         -noreset \
         -novtswitch \
-        -vt"$VT_NUM" \
+        "vt$VT_NUM" \
         > "$LOG_DIR/xorg-$USERNAME.log" 2>&1 &
 
     # Wait up to 10s for the socket to appear.
