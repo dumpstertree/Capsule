@@ -147,10 +147,6 @@ done
 # 7. host unit + capsulectl + xorg configs
 ###############################################################################
 
-# Add missing CAPSULE_GPU_BUSIDS key so users can adopt per-GPU displays later
-grep -q '^CAPSULE_GPU_BUSIDS=' "$CAPSULE_CONFIG" || \
-    printf 'CAPSULE_GPU_BUSIDS=\n' >> "$CAPSULE_CONFIG"
-
 install -m 0644 "$SCRIPT_DIR/example-capsule-host.service" /etc/systemd/system/capsule-host.service
 install -m 0755 "$SCRIPT_DIR/capsulectl" /usr/local/bin/capsulectl
 sh "$SCRIPT_DIR/preconfig-xorg.sh"

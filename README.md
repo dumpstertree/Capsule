@@ -63,20 +63,28 @@ SUNSHINE_PORT_STEP=1000
 CAPSULE_USER_PREFIX=capsule
 ```
 
-## Multiple GPUs / displays
+## One GPU, many capsules (dummy displays)
 
-Two GPU-backed Xorg servers can never share one physical GPU — DRM master is
-exclusive per card (`device is not DRM master` in `/var/log/Xorg.N.log`). Give
-each capsule its own GPU:
+Capsules do NOT run GPU-backed Xorg servers — two X servers can never share a
+card because DRM/KMS master is exclusive per card (`device is not DRM master`
+in `/var/log/Xorg.N.log`). Instead every capsule runs a **dummy** X display
+(RAM framebuffer) and the GPU is shared the way the kernel allows: through its
+**render node**, which has no master and unlimited concurrent clients.
+Games render on the GPU (Vulkan/Proton via GBM/render nodes), Sunshine
+captures the dummy surface (`capture = x11`).
 
-1. Pass each GPU's card+render node into the LXC (`dev0: /dev/dri/card1`,
-   `dev3: /dev/dri/card2`, plus matching `renderD*`; the
-   `/dev/dri/by-path` bind covers naming).
-2. Set `CAPSULE_GPU_BUSIDS` in `/etc/capsule/config` — one xorg BusID per
-   capsule index, **decimal** bus numbers (`lspci` shows `0000:30:00.0` =
-   hex → `PCI:48:0:0`).
-3. `preconfig-xorg.sh` then generates `/etc/X11/capsule/xorg.<N>.conf` per
-   display and `start-host.sh` uses them automatically.
+Consequences to plan around:
+
+* **Vulkan is hardware** (Proton, DXVK, and native VK titles — the common
+  case). **GLX/OpenGL falls back to llvmpipe** on dummy displays: fine for
+  Steam's UI, slow for heavy native-GL games.
+* All capsules share the GPU's compute/VRAM — two heavy AAA titles at once
+  contend, as expected.
+* **Render node mapping matters:** nodes pair by probe order
+  (`card0↔renderD128`, `card1↔renderD129`, …). Pass the render node of the
+  GPU you actually want used, resolved via
+  `ls -l /dev/dri/by-path/ | grep <pci-address>` on the host — do not guess
+  the number.
 
 ## Operating
 

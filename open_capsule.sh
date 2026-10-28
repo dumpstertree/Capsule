@@ -22,20 +22,9 @@ echo "Open how many Capsules? (1-999)"
 read -r USER_COUNT
 [[ "$USER_COUNT" =~ ^[1-9][0-9]{0,2}$ ]] || error "Invalid count '$USER_COUNT' — enter a number 1-999"
 
-echo "GPU Index? (the N in /dev/dri/cardN used by xorg.conf)"
+echo "GPU Index? (informational; rendering uses the render node passed into the LXC)"
 read -r GPU_INDEX
 [[ "$GPU_INDEX" =~ ^[0-9]{1,2}$ ]] || error "GPU index must be a small number"
-
-echo "Per-capsule GPU BusIDs? (comma separated, one per capsule, e.g. PCI:18:0:0,PCI:48:0:0)"
-echo "  Each capsule needs its OWN GPU (DRM master is exclusive per card)."
-echo "  Decimal bus numbers from 'lspci' on the host: 0000:30:00.0 -> PCI:48:0:0."
-echo "  Leave empty to share the single legacy xorg.conf across all displays."
-read -r GPU_BUSIDS
-GPU_BUSIDS="$(echo "$GPU_BUSIDS" | tr -d ' ')"
-if [ -n "$GPU_BUSIDS" ]; then
-    n_ids=$(echo "$GPU_BUSIDS" | tr ',' '\n' | wc -l)
-    [ "$n_ids" -ge "$USER_COUNT" ] || error "Got $n_ids BusIDs for $USER_COUNT capsules — need one each"
-fi
 
 echo "Windows Games path? (directory of game folders, e.g. /games)"
 read -r GAMES_PATH
@@ -68,7 +57,6 @@ GAMES_PATH=$GAMES_PATH
 PERSISTENT_DATA_PATH=$PERSISTENT_DATA_PATH
 SUNSHINE_ALLOWED_ORIGINS=$SUNSHINE_ALLOWED_ORIGINS
 STEAMGRIDDB_API_KEY=$STEAMGRIDDB_API_KEY
-CAPSULE_GPU_BUSIDS=$GPU_BUSIDS
 SUNSHINE_BASE_PORT=47989
 SUNSHINE_PORT_STEP=1000
 CAPSULE_USER_PREFIX=capsule
