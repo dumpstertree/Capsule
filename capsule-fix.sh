@@ -147,6 +147,12 @@ done
 # 7. host unit + capsulectl + xorg configs
 ###############################################################################
 
+# Optional GPU-backed display keys (empty default keeps the pure-dummy setup)
+grep -q '^CAPSULE_GPU_DISPLAYS=' "$CAPSULE_CONFIG" || \
+    printf 'CAPSULE_GPU_DISPLAYS=\n' >> "$CAPSULE_CONFIG"
+grep -q '^CAPSULE_KMSDEV=' "$CAPSULE_CONFIG" || \
+    printf 'CAPSULE_KMSDEV=/dev/dri/card1\n' >> "$CAPSULE_CONFIG"
+
 install -m 0644 "$SCRIPT_DIR/example-capsule-host.service" /etc/systemd/system/capsule-host.service
 install -m 0755 "$SCRIPT_DIR/capsulectl" /usr/local/bin/capsulectl
 sh "$SCRIPT_DIR/preconfig-xorg.sh"

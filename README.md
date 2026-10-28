@@ -77,7 +77,10 @@ Consequences to plan around:
 
 * **Vulkan is hardware** (Proton, DXVK, and native VK titles — the common
   case). **GLX/OpenGL falls back to llvmpipe** on dummy displays: fine for
-  Steam's UI, slow for heavy native-GL games.
+  Steam's UI, slow for heavy native-GL games. To give one capsule hardware
+  GLX too, set `CAPSULE_GPU_DISPLAYS=0` (plus `CAPSULE_KMSDEV` if the card
+  node differs) — that display gets a GPU-backed X server with DRM master.
+  Only ONE display per card can do this; the others must stay dummy.
 * All capsules share the GPU's compute/VRAM — two heavy AAA titles at once
   contend, as expected.
 * **Render node mapping matters:** pass the render node of the GPU you actually

@@ -40,6 +40,12 @@ CAPSULE_CONFIG="${CAPSULE_CONFIG:-$CAPSULE_DIR/config}"
 #   PERSISTENT_DATA_PATH       (none, required)
 #   SUNSHINE_ALLOWED_ORIGINS   (none, required)  comma separated https:// origins
 #   STEAMGRIDDB_API_KEY        (empty allowed)
+#   CAPSULE_GPU_DISPLAYS       (empty allowed) display index (ONE) that runs
+#                              a GPU-backed X server (hardware GLX); all other
+#                              displays use the dummy driver. Vulkan is
+#                              hardware everywhere regardless.
+#   CAPSULE_KMSDEV             (/dev/dri/card1) card node for the GPU-backed
+#                              display; resolve via /dev/dri/by-path on host.
 #   SUNSHINE_BASE_PORT         (47989)
 #   SUNSHINE_PORT_STEP         (1000)
 #   CAPSULE_USER_PREFIX        (capsule)
