@@ -71,17 +71,23 @@ for HOME_DIR in /home/*; do
 
     echo "Starting Xorg for $USERNAME on display $DISPLAY_NUM (config: $DISPLAY_XORG_CONFIG)"
 
-    # Each Xorg needs its OWN virtual terminal: when a second X server takes
-    # VT ownership (VT_SETMODE), the kernel SIGTERMs the previous owner — and
-    # in a container without real VTs, auto-allocation parks every server on
-    # /dev/tty7, so each display silently kills the one before it. -novtswitch
-    # only prevents switching, not ownership. Assign tty(7+index) explicitly
-    # via the BARE argument "vtN" (Linux Xorg parses it with sscanf("vt%2d");
-    # "-vtN" is NOT an option and makes Xorg exit at argument parsing).
+    # Each Xorg needs a virtual terminal, but claiming VT OWNERSHIP
+    # (VT_SETMODE) makes the kernel SIGTERM the previous owner — fatal for
+    # multiple servers, and in a container auto-allocation parks them all on
+    # tty7 anyway. -sharevts skips the entire ownership block in
+    # xf86OpenConsole (no switch_to/VT_SETMODE/KDSETMODE); input arrives via
+    # libinput/udev, not the console fd, so ownership buys us nothing here.
+    # Unique "vtN" (BARE arg — parsed via sscanf "vt%2d"; "-vtN" is invalid)
+    # keeps log lines per-server and the node self-created if udev skipped it.
     VT_NUM=$((7 + INDEX))
     if [ "$VT_NUM" -gt 63 ]; then
         warn "Index $INDEX exceeds VT range; reusing tty7 for $USERNAME"
         VT_NUM=7
+    fi
+    if [ ! -c "/dev/tty$VT_NUM" ]; then
+        warn "Creating missing /dev/tty$VT_NUM"
+        mknod -m 600 "/dev/tty$VT_NUM" c 4 "$VT_NUM" 2>/dev/null || \
+            warn "mknod /dev/tty$VT_NUM failed"
     fi
 
     # shellcheck disable=SC2024  # log path is per-user, validated index
@@ -89,6 +95,7 @@ for HOME_DIR in /home/*; do
         -config "$DISPLAY_XORG_CONFIG" \
         -noreset \
         -novtswitch \
+        -sharevts \
         "vt$VT_NUM" \
         > "$LOG_DIR/xorg-$USERNAME.log" 2>&1 &
 
@@ -103,6 +110,9 @@ for HOME_DIR in /home/*; do
         started=$((started + 1))
     else
         warn "Xorg failed to start for $USERNAME on $DISPLAY_NUM — see $LOG_DIR/xorg-$USERNAME.log and /var/log/Xorg.$INDEX.log"
+        # Echo the reason into the journal so `journalctl -u capsule-host`
+        # alone is actionable.
+        tail -n 8 "$LOG_DIR/xorg-$USERNAME.log" 2>/dev/null | sed "s/^/[xorg-$USERNAME] /" >&2
         failed=$((failed + 1))
     fi
 done
