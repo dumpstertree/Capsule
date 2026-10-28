@@ -26,6 +26,7 @@ echo "Searching for capsule users..."
 
 started=0
 skipped=0
+failed=0
 
 for HOME_DIR in /home/*; do
     [ -d "$HOME_DIR" ] || continue
@@ -79,9 +80,17 @@ for HOME_DIR in /home/*; do
         echo "  display $DISPLAY_NUM is up"
         started=$((started + 1))
     else
-        # shellcheck disable=SC2024
-        error "Xorg failed to start for $USERNAME on $DISPLAY_NUM — see $LOG_DIR/xorg-$USERNAME.log"
+        warn "Xorg failed to start for $USERNAME on $DISPLAY_NUM — see $LOG_DIR/xorg-$USERNAME.log and /var/log/Xorg.$INDEX.log"
+        failed=$((failed + 1))
     fi
 done
 
-echo "Xorg displays started: $started, already running: $skipped"
+echo "Xorg displays started: $started, already running: $skipped, failed: $failed"
+
+# Never fail the whole unit for one bad display: a non-zero exit here would
+# make systemd kill the still-healthy Xorg servers in this unit's cgroup.
+# Only fail when NOTHING is serving displays.
+if [ "$started" -eq 0 ] && [ "$skipped" -eq 0 ]; then
+    error "No capsule displays could be started"
+fi
+[ "$failed" -gt 0 ] && exit 0   # partial success stays "active"
