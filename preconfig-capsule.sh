@@ -1,63 +1,39 @@
-# make sure systemd can call any script in the repo
-#chmod -R 777 /Capsule
+#!/bin/bash
+# =============================================================================
+# Install the capsule@.service user template and enable it for one user.
+# Usage: preconfig-capsule.sh <username> <index>
+#
+# Replaces the old copy-per-user capsule.service + sed-ExecStart approach:
+# a single templated unit is installed machine-wide and enabled per user via
+# a wants-symlink named capsule@<user>.service.
+# =============================================================================
+set -euo pipefail
 
-# copy example service into folder
-#cp /Capsule/example-capsule.service /etc/systemd/system/capsule.service
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 
-# update the daemon list with newly created 
-#systemctl daemon-reload
-
-# enable the service for next time
-#systemctl enable capsule.service
-
-# start the service now
-#systemctl start capsule.service
-
-# create the service target directory
-#mkdir -p /home/gamer/.config/systemd/user/default.target.wants
-#copy example host service to target
-#cp /Capsule/example-capsule-host.service /etc/systemd/system/capsule-host.service
-
-# enable now and in the future
-#systemctl enable capsule-host.service
-
-# --- Helpers ---
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-log()   { echo -e "${GREEN}[SETUP]${NC} $1"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
-error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
-info()  { echo -e "${BLUE}[INFO]${NC} $1"; }
-
-if [ -z "$1" ]; then
-    echo "Error: username argument required" >&2
-    echo "Usage: $0 <username>" >&2
+if [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
+    echo "Usage: $0 <username> <index>" >&2
     exit 1
 fi
 
 USERNAME="$1"
 INDEX="$2"
-USER_HOME="/home/$USERNAME"
 
-if ! [[ "$INDEX" =~ ^[0-9]+$ ]]; then
-    error "Index must be a non-negative integer"
-fi
+capsule_require_root
+capsule_valid_username "$USERNAME" || error "Invalid username '$USERNAME'"
+capsule_valid_index "$INDEX" || error "Index must be a number 0-999"
 
-if [ "$(id -u)" -ne 0 ]; then
-    error "Must be run as root"
-fi
+USER_HOME="$(capsule_user_home "$USERNAME")"
 
-#copy example user service to target
-cp /Capsule/example-capsule.service /usr/lib/systemd/user/capsule.service
+install -m 0644 "$SCRIPT_DIR/capsule@.service" /usr/lib/systemd/user/capsule@.service
 
-sed -i "s|ExecStart=.*start-stream3.sh.*|ExecStart=/Capsule/start-stream3.sh $INDEX|" /usr/lib/systemd/user/capsule.service
+WANTS="$USER_HOME/.config/systemd/user/default.target.wants"
+capsule_ensure_dir "$WANTS" "$USERNAME:$USERNAME" 0755
+ln -sf "/usr/lib/systemd/user/capsule@.service" "$WANTS/capsule@$USERNAME.service"
 
-# enable now and in the future
-mkdir -p $USER_HOME/.config/systemd/user/default.target.wants
-ln -sf /usr/lib/systemd/user/capsule.service $USER_HOME/.config/systemd/user/default.target.wants/capsule.service
-chown -R $USERNAME:$USERNAME $USER_HOME/.config
+chown -R "$USERNAME:$USERNAME" "$USER_HOME/.config"
+systemctl daemon-reload
 
+log "capsule@$USERNAME.service enabled (display :$INDEX)"

@@ -1,0 +1,17 @@
+[Unit]
+Description=Capsule stream (%i)
+Documentation=https://github.com/dumpstertree/Capsule
+After=pipewire.service pipewire-pulse.service wireplumber.service graphical.target
+Wants=pipewire.service pipewire-pulse.service wireplumber.service
+
+[Service]
+Type=simple
+ExecStart=/Capsule/start-stream.sh
+Restart=on-failure
+RestartSec=5
+# start-stream.sh execs sunshine in the foreground; steam/openbox are children.
+TimeoutStopSec=30
+KillMode=mixed
+
+[Install]
+WantedBy=default.target

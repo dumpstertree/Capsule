@@ -1,56 +1,63 @@
 #!/bin/bash
-set -e
+# =============================================================================
+# Create one capsule user (idempotent).
+# Usage: create_user.sh <username> <display_index>
+# =============================================================================
+set -euo pipefail
 
-if [ -z "$1" ]; then
-    echo "Error: username argument required" >&2
-    echo "Usage: $0 <username> <display_index>" >&2
-    exit 1
-fi
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 
-if [ -z "$2" ]; then
-    echo "Error: display index argument required" >&2
+if [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
     echo "Usage: $0 <username> <display_index>" >&2
     exit 1
 fi
 
 USERNAME="$1"
 INDEX="$2"
-USER_HOME="/home/$USERNAME"
-CONFIG_FILE="$USER_HOME/capsule.config"
 
-if [ "$(id -u)" -ne 0 ]; then
-    echo "Error: must be run as root" >&2
-    exit 1
+capsule_require_root
+capsule_valid_username "$USERNAME" || error "Invalid username '$USERNAME'"
+capsule_valid_index "$INDEX" || error "Index must be a number 0-999"
+
+USER_HOME="/home/$USERNAME"
+PREFIX_GROUP="capsule"
+
+# Shared group so capsule users can read /etc/capsule/config without 777.
+getent group "$PREFIX_GROUP" >/dev/null || groupadd "$PREFIX_GROUP"
+
+if id "$USERNAME" >/dev/null 2>&1; then
+    log "User $USERNAME already exists — skipping creation"
+else
+    log "Creating user: $USERNAME"
+    useradd -m -G audio,video -s /bin/bash "$USERNAME"
+    # NOTE: deliberately NOT calling `passwd -d`. A blank password is a security
+    # hole; capsule users are serviced by systemd (linger), never by login.
+    # To get a shell: sudo -iu <user>   (root runuser also works)
 fi
 
-echo "Creating user: $USERNAME"
-useradd -m -s /bin/bash "$USERNAME"
-
-echo "Setting password for $USERNAME"
-passwd -d "$USERNAME"
-
-echo "Adding $USERNAME to required groups"
-for group in video render input audio; do
+# GPU / input groups (create-if-missing tolerant).
+for group in video render input audio "$PREFIX_GROUP"; do
     if getent group "$group" > /dev/null; then
         usermod -aG "$group" "$USERNAME"
-        echo "  Added to $group"
     else
-        echo "  Warning: group '$group' does not exist, skipping"
+        warn "Group '$group' does not exist, skipping"
     fi
 done
 
-echo "Creating capsule config"
-echo "$INDEX" > "$CONFIG_FILE"
+log "Capsule index: $INDEX"
+printf '%s\n' "$INDEX" > "$USER_HOME/capsule.config"
+chmod 0644 "$USER_HOME/capsule.config"
 
-mkdir -p "$USER_HOME/.config/sunshine"
+# Steam / Proton skeleton so data-sync and Steam start cleanly on first boot.
+capsule_ensure_dir "$USER_HOME/.steam/steam/steamapps/compatdata" "$USERNAME:$USERNAME" 0755
+capsule_ensure_dir "$USER_HOME/.config/sunshine" "$USERNAME:$USERNAME" 0755
+capsule_ensure_dir "$USER_HOME/.config/systemd/user/default.target.wants" "$USERNAME:$USERNAME" 0755
 
-chown "$USERNAME:$USERNAME" "$CONFIG_FILE"
-chown -R "$USERNAME:$USERNAME" "$USER_HOME/.config"
+chown -R "$USERNAME:$USERNAME" "$USER_HOME/.steam" "$USER_HOME/.config"
 
-echo "Enabling linger for $USERNAME (keeps user session alive without login)"
+log "Enabling linger for $USERNAME (user services start without login)"
 loginctl enable-linger "$USERNAME"
 
-echo ""
-echo "Done. Verify with:"
-echo "  id $USERNAME"
-echo "  cat $CONFIG_FILE"
+log "Done: $USERNAME (index $INDEX)"

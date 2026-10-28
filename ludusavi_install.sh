@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 # ludusavi-install.sh — Install Ludusavi by downloading the prebuilt binary from GitHub
 

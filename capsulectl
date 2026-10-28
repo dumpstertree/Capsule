@@ -1,0 +1,152 @@
+#!/bin/bash
+# =============================================================================
+# capsulectl — manage Capsule instances from the container root shell.
+#
+#   capsulectl list                 table of all capsules + status
+#   capsulectl --json list          machine readable (dashboard)
+#   capsulectl status <user>|all
+#   capsulectl start  <user>|all
+#   capsulectl stop   <user>|all
+#   capsulectl restart <user>|all
+#
+# Controls the capsule@<user>.service systemd *user* unit via each user's
+# lingered systemd manager — no logins, no passwords, no shells.
+# =============================================================================
+set -uo pipefail
+
+# Use the installed /Capsule tree when present, else the script's own directory
+# (running straight from a git checkout).
+SELF_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+if [ -z "${CAPSULE_REPO:-}" ]; then
+    if [ -f /Capsule/lib/common.sh ]; then REPO_DIR=/Capsule; else REPO_DIR="$SELF_DIR"; fi
+else
+    REPO_DIR="$CAPSULE_REPO"
+fi
+# shellcheck source=lib/common.sh
+source "$REPO_DIR/lib/common.sh"
+
+capsule_require_root
+
+JSON=0
+if [ "${1:-}" = "--json" ]; then
+    JSON=1
+    shift
+fi
+
+ACTION="${1:-}"
+
+json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+
+capsule_users() {
+    local cfg prefix
+    prefix="$(capsule_user_prefix)"
+    for cfg in /home/$prefix*/capsule.config; do
+        [ -f "$cfg" ] || continue
+        basename "$(dirname "$cfg")"
+    done
+}
+
+validate_user() {
+    local user="$1" u
+    for u in $(capsule_users); do
+        [ "$u" = "$user" ] && return 0
+    done
+    error "Unknown capsule '$user' (known: $(capsule_users | tr '\n' ' '))"
+}
+
+unit_state() {
+    # ActiveState of capsule@<user>.service for that user's manager; prints
+    # active|inactive|failed|unknown
+    local user="$1" state
+    state="$(capsule_run_user "$user" systemctl --user is-active "capsule@$user.service" 2>/dev/null || true)"
+    case "$state" in
+        active) echo active ;;
+        failed) echo failed ;;
+        *)      echo inactive ;;
+    esac
+}
+
+capsule_info_json() {
+    # One JSON object for capsule $1 (caller composes the array)
+    capsule_info "$1"
+    printf '{"user":"%s","index":%s,"state":"%s","stream_port":%s,"ui_port":%s,"sunshine_listening":%s,"steam_running":%s,"xorg_up":%s,"home":"/home/%s"}' \
+        "$(json_escape "$I_USER")" "$I_INDEX" "$I_STATE" "$I_BASE" "$I_UI" "$I_LISTEN" "$I_STEAM" "$I_XORG" "$(json_escape "$I_USER")"
+}
+
+capsule_info() {
+    # Populates globals: I_USER I_INDEX I_BASE I_UI I_STATE I_LISTEN I_STEAM I_XORG
+    local user="$1"
+    I_USER="$user"
+    I_INDEX="$(capsule_read_user_index "/home/$user/capsule.config")" || I_INDEX=-1
+    I_BASE=$(( $(capsule_sunshine_base_port) + I_INDEX * $(capsule_sunshine_port_step) ))
+    I_UI=$(( I_BASE + 1 ))
+    I_STATE="$(unit_state "$user")"
+    I_LISTEN=no
+    capsule_tcp_listening "$I_UI" && I_LISTEN=yes
+    I_STEAM=no
+    pgrep -U "$(id -u "$user")" -f 'steam.*bigpicture' >/dev/null 2>&1 && I_STEAM=yes
+    I_XORG=no
+    capsule_display_up "$I_INDEX" && I_XORG=yes
+}
+
+do_list() {
+    local users first=1
+    users="$(capsule_users)"
+
+    if [ "$JSON" = 1 ]; then
+        printf '['
+        for u in $users; do
+            [ "$first" = 1 ] || printf ','
+            first=0
+            capsule_info_json "$u"
+        done
+        printf ']\n'
+        return
+    fi
+
+    printf '%-12s %-6s %-9s %-10s %-6s %-6s %s\n' \
+        "CAPSULE" "INDEX" "STATE" "UI PORT" "XORG" "STEAM" "SUNSHINE UI"
+    for u in $users; do
+        capsule_info "$u"
+        printf '%-12s %-6s %-9s %-10s %-6s %-6s %s\n' \
+            "$I_USER" "$I_INDEX" "$I_STATE" "$I_UI" "$I_XORG" "$I_STEAM" "https://<host>:$I_UI"
+    done
+}
+
+do_status() {
+    local user="$1"
+    validate_user "$user"
+    capsule_run_user "$user" systemctl --user status "capsule@$user.service" --no-pager -l || true
+}
+
+do_action() {
+    local action="$1" target="$2" users u rc=0
+    if [ "$target" = "all" ]; then
+        users="$(capsule_users)"
+    else
+        validate_user "$target"
+        users="$target"
+    fi
+    for u in $users; do
+        case "$action" in
+            start)   capsule_run_user "$u" systemctl --user start "capsule@$u.service"   && log "$u started"   || { warn "$u failed to start"; rc=1; } ;;
+            stop)    capsule_run_user "$u" systemctl --user stop  "capsule@$u.service"   && log "$u stopped"   || { warn "$u failed to stop";  rc=1; } ;;
+            restart) capsule_run_user "$u" systemctl --user restart "capsule@$u.service" && log "$u restarted" || { warn "$u failed to restart"; rc=1; } ;;
+        esac
+    done
+    return $rc
+}
+
+usage() {
+    sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
+    exit 1
+}
+
+case "$ACTION" in
+    list)   do_list ;;
+    status) do_status "${2:?usage: capsulectl status <user>|all}" ;;
+    start)  do_action start "${2:?usage: capsulectl start <user>|all}" ;;
+    stop)   do_action stop "${2:?usage: capsulectl stop <user>|all}" ;;
+    restart) do_action restart "${2:?usage: capsulectl restart <user>|all}" ;;
+    *)      usage ;;
+esac

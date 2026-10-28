@@ -1,75 +1,72 @@
 #!/bin/bash
-set -e
+# =============================================================================
+# Capsule save/metadata sync (runs at stream start).
+#
+# Bidirectional sync between the local Proton prefix (compatdata/<appid>) and
+# the persistent backup location, newest-wins by mtime.
+#
+# Failure policy: configuration problems abort with an actionable message;
+# per-game sync problems only warn, so one bad game never stops the stream.
+# =============================================================================
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 
 ###############################################################################
 # CONFIG
 ###############################################################################
 
-CONFIG_FILE="/capsule-host.config"
+USERNAME="$(whoami)"
+USER_HOME="$(capsule_user_home "$USERNAME")"
 
-###############################################################################
-# VALIDATION
-###############################################################################
+PERSISTENT_DATA_PATH="$(capsule_conf_get PERSISTENT_DATA_PATH)"
 
-if [[ ! -f "$CONFIG_FILE" ]]; then
-    echo "Missing config:"
-    echo "  $CONFIG_FILE"
-    exit 1
+if [ -z "$PERSISTENT_DATA_PATH" ]; then
+    error "PERSISTENT_DATA_PATH not set in $CAPSULE_CONFIG — re-run open_capsule.sh"
 fi
 
-###############################################################################
-# READ CONFIG
-###############################################################################
-
-GPU_INDEX="$(sed -n '1p' "$CONFIG_FILE" | xargs)"
-GAMES_PATH="$(sed -n '2p' "$CONFIG_FILE" | xargs)"
-PERSISTENT_DATA_PATH="$(sed -n '3p' "$CONFIG_FILE" | xargs)"
-WHITELISTED_SUNSHINE_IPS="$(sed -n '4p' "$CONFIG_FILE" | xargs)"
-STEAMGRIDDB_API_KEY="$(sed -n '5p' "$CONFIG_FILE" | xargs)"
-
-###############################################################################
-# PATHS
-###############################################################################
-
-USERNAME="$(whoami)"
-
-COMPATDATA_DIR="$HOME/.steam/steam/steamapps/compatdata"
-
+COMPATDATA_DIR="$USER_HOME/.steam/steam/steamapps/compatdata"
 METADATA_DIR="$PERSISTENT_DATA_PATH/metadata"
-
 PERSISTENT_BACKUP_DIR="$PERSISTENT_DATA_PATH/backups/$USERNAME"
 
+# Python with stdlib json (venv created by generate-shortcuts.sh, else system)
+PYTHON="/opt/capsule-steam-venv/bin/python"
+command -v "$PYTHON" >/dev/null 2>&1 || PYTHON="$(command -v python3 || command -v python || true)"
+[ -n "$PYTHON" ] || error "No python found for JSON parsing"
+
 ###############################################################################
-# VALIDATION
+# VALIDATION (skip quietly — fresh capsule is not an error)
 ###############################################################################
 
-if [[ ! -d "$COMPATDATA_DIR" ]]; then
-    echo "Missing compatdata:"
-    echo "  $COMPATDATA_DIR"
+if [ ! -d "$COMPATDATA_DIR" ]; then
+    info "No compatdata yet ($COMPATDATA_DIR) — nothing to sync until a game has run once"
     exit 0
 fi
 
-if [[ ! -d "$METADATA_DIR" ]]; then
-    echo "Missing metadata:"
-    echo "  $METADATA_DIR"
+if [ ! -d "$METADATA_DIR" ]; then
+    info "No metadata yet ($METADATA_DIR) — run generate-shortcuts.sh once games are installed"
     exit 0
 fi
 
-mkdir -p "$PERSISTENT_BACKUP_DIR"
+if ! mkdir -p "$PERSISTENT_BACKUP_DIR" 2>/dev/null; then
+    error "Cannot create backup dir $PERSISTENT_BACKUP_DIR
+Fix on the host (UID/GID of $USERNAME: $(id -u "$USERNAME")/$(id -g "$USERNAME")):
+    mkdir -p $(dirname "$PERSISTENT_BACKUP_DIR")
+    chown $(id -u "$USERNAME"):$(id -g "$USERNAME") $(dirname "$PERSISTENT_BACKUP_DIR")"
+fi
 
 ###############################################################################
 # HELPERS
 ###############################################################################
 
 get_mtime() {
-
     local TARGET="$1"
-
-    if [[ ! -e "$TARGET" ]]; then
+    if [ ! -e "$TARGET" ]; then
         echo "0"
         return
     fi
-
     find "$TARGET" -type f -printf "%T@\n" 2>/dev/null \
         | sort -n \
         | tail -1 \
@@ -77,14 +74,11 @@ get_mtime() {
 }
 
 sync_bidirectional() {
-
     local LOCAL_PATH="$1"
     local BACKUP_PATH="$2"
     local GAME_NAME="$3"
 
-    local LOCAL_TIME
-    local BACKUP_TIME
-
+    local LOCAL_TIME BACKUP_TIME
     LOCAL_TIME="$(get_mtime "$LOCAL_PATH")"
     BACKUP_TIME="$(get_mtime "$BACKUP_PATH")"
 
@@ -92,92 +86,49 @@ sync_bidirectional() {
     echo "--------------------------------------------------"
     echo "$GAME_NAME"
     echo "--------------------------------------------------"
-
     echo "Local Time:   $LOCAL_TIME"
     echo "Backup Time:  $BACKUP_TIME"
 
-    ###########################################################################
-    # ONLY LOCAL EXISTS
-    ###########################################################################
-
-    if [[ -d "$LOCAL_PATH" && ! -d "$BACKUP_PATH" ]]; then
-
+    if [ -d "$LOCAL_PATH" ] && [ ! -d "$BACKUP_PATH" ]; then
         echo "Backup missing -> copying local to backup"
-
-        mkdir -p "$BACKUP_PATH"
-
-        rsync -a \
-            "$LOCAL_PATH/" \
-            "$BACKUP_PATH/"
-
+        mkdir -p "$BACKUP_PATH" && rsync -a "$LOCAL_PATH/" "$BACKUP_PATH/" || warn "rsync failed for $GAME_NAME"
         return
     fi
 
-    ###########################################################################
-    # ONLY BACKUP EXISTS
-    ###########################################################################
-
-    if [[ ! -d "$LOCAL_PATH" && -d "$BACKUP_PATH" ]]; then
-
+    if [ ! -d "$LOCAL_PATH" ] && [ -d "$BACKUP_PATH" ]; then
         echo "Local missing -> restoring from backup"
-
-        mkdir -p "$LOCAL_PATH"
-
-        rsync -a \
-            "$BACKUP_PATH/" \
-            "$LOCAL_PATH/"
-
+        mkdir -p "$LOCAL_PATH" && rsync -a "$BACKUP_PATH/" "$LOCAL_PATH/" || warn "rsync failed for $GAME_NAME"
         return
     fi
 
-    ###########################################################################
-    # BOTH MISSING
-    ###########################################################################
-
-    if [[ ! -d "$LOCAL_PATH" && ! -d "$BACKUP_PATH" ]]; then
-
+    if [ ! -d "$LOCAL_PATH" ] && [ ! -d "$BACKUP_PATH" ]; then
         echo "Both missing"
-
         return
     fi
 
-    ###########################################################################
-    # LOCAL NEWER
-    ###########################################################################
+    LOCAL_TIME="${LOCAL_TIME:-0}"; BACKUP_TIME="${BACKUP_TIME:-0}"
 
-    if (( LOCAL_TIME > BACKUP_TIME )); then
-
+    if [ "$LOCAL_TIME" -gt "$BACKUP_TIME" ] 2>/dev/null; then
         echo "Local newer -> syncing to backup"
-
-        rsync -a \
-            --delete \
-            "$LOCAL_PATH/" \
-            "$BACKUP_PATH/"
-
-        return
-    fi
-
-    ###########################################################################
-    # BACKUP NEWER
-    ###########################################################################
-
-    if (( BACKUP_TIME > LOCAL_TIME )); then
-
+        rsync -a --delete "$LOCAL_PATH/" "$BACKUP_PATH/" || warn "rsync failed for $GAME_NAME"
+    elif [ "$BACKUP_TIME" -gt "$LOCAL_TIME" ] 2>/dev/null; then
         echo "Backup newer -> restoring to local"
-
-        rsync -a \
-            --delete \
-            "$BACKUP_PATH/" \
-            "$LOCAL_PATH/"
-
-        return
+        rsync -a --delete "$BACKUP_PATH/" "$LOCAL_PATH/" || warn "rsync failed for $GAME_NAME"
+    else
+        echo "Already synced"
     fi
+}
 
-    ###########################################################################
-    # SAME
-    ###########################################################################
-
-    echo "Already synced"
+read_metadata_field() {
+    # read_metadata_field <file> <key>
+    "$PYTHON" - "$1" "$2" <<'PYEOF'
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        print(json.load(f).get(sys.argv[2], ""))
+except Exception:
+    print("")
+PYEOF
 }
 
 ###############################################################################
@@ -188,54 +139,37 @@ echo ""
 echo "=================================================="
 echo "Capsule Data Sync"
 echo "=================================================="
-
 echo "User:"
 echo "  $USERNAME"
 
-###############################################################################
-# PROCESS GAMES
-###############################################################################
+failures=0
 
 for METADATA_FILE in "$METADATA_DIR"/*.json; do
+    [ -f "$METADATA_FILE" ] || continue
 
-    if [[ ! -f "$METADATA_FILE" ]]; then
+    SHORTCUT_APPID="$(read_metadata_field "$METADATA_FILE" shortcut_appid)"
+    GAME_NAME="$(read_metadata_field "$METADATA_FILE" official_name)"
+    [ -n "$GAME_NAME" ] || GAME_NAME="Unknown Game"
+
+    if [ -z "$SHORTCUT_APPID" ] || [ "$SHORTCUT_APPID" = "None" ]; then
         continue
     fi
 
-    SHORTCUT_APPID="$(python -c "
-import json
-with open('$METADATA_FILE') as f:
-    data=json.load(f)
-print(data.get('shortcut_appid', ''))
-")"
-
-    GAME_NAME="$(python -c "
-import json
-with open('$METADATA_FILE') as f:
-    data=json.load(f)
-print(data.get('official_name', 'Unknown Game'))
-")"
-
-    if [[ -z "$SHORTCUT_APPID" ]]; then
-        continue
-    fi
-
-    LOCAL_PATH="$COMPATDATA_DIR/$SHORTCUT_APPID"
-
-    BACKUP_PATH="$PERSISTENT_BACKUP_DIR/$SHORTCUT_APPID"
+    # appid must be numeric — refuse path traversal from a corrupt metadata file
+    case "$SHORTCUT_APPID" in
+        ''|*[!0-9]*) warn "Skipping $METADATA_FILE: bad shortcut_appid '$SHORTCUT_APPID'"; continue ;;
+    esac
 
     sync_bidirectional \
-        "$LOCAL_PATH" \
-        "$BACKUP_PATH" \
-        "$GAME_NAME"
-
+        "$COMPATDATA_DIR/$SHORTCUT_APPID" \
+        "$PERSISTENT_BACKUP_DIR/$SHORTCUT_APPID" \
+        "$GAME_NAME" || failures=$((failures + 1))
 done
-
-###############################################################################
-# DONE
-###############################################################################
 
 echo ""
 echo "=================================================="
+if [ "$failures" -gt 0 ]; then
+    echo "Sync Complete with $failures failure(s)"
+    exit 1
+fi
 echo "Sync Complete"
-echo "=================================================="

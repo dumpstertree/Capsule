@@ -1,40 +1,32 @@
-# enable all audio servicess
-#runuser -u gamer -- systemctl --user enable pipewire.service
-#runuser -u gamer -- systemctl --user enable wireplumber.service
-#runuser -u gamer -- systemctl --user enable pipewire-pulse.service
-#systemctl --user enable pipewire-pulse.socket
-#systemctl --user enable pipewire.socket
-# As root inside the container
+#!/bin/bash
+# =============================================================================
+# Enable pipewire stack for one capsule user (idempotent).
+# Usage: preconfig-audio.sh <username>
+# =============================================================================
+set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+# shellcheck source=lib/common.sh
+source "$SCRIPT_DIR/lib/common.sh"
 
-# --- Helpers ---
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
-
-log()   { echo -e "${GREEN}[SETUP]${NC} $1"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC} $1"; }
-error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
-info()  { echo -e "${BLUE}[INFO]${NC} $1"; }
-
-if [ -z "$1" ]; then
-    echo "Error: username argument required" >&2
-    echo "Usage: $0 <username>" >&2
-    exit 1
-fi
+[ -n "${1:-}" ] || { echo "Usage: $0 <username>" >&2; exit 1; }
 
 USERNAME="$1"
-USER_HOME="/home/$USERNAME"
+capsule_require_root
+capsule_valid_username "$USERNAME" || error "Invalid username '$USERNAME'"
 
-if [ "$(id -u)" -ne 0 ]; then
-    echo "Error: must be run as root" >&2
-    exit 1
-fi
+USER_HOME="$(capsule_user_home "$USERNAME")"
+WANTS="$USER_HOME/.config/systemd/user/default.target.wants"
 
-mkdir -p $USER_HOME/.config/systemd/user/default.target.wants
-ln -sf /usr/lib/systemd/user/pipewire.service $USER_HOME/.config/systemd/user/default.target.wants/pipewire.service
-ln -sf /usr/lib/systemd/user/pipewire-pulse.service $USER_HOME/.config/systemd/user/default.target.wants/pipewire-pulse.service
-ln -sf /usr/lib/systemd/user/wireplumber.service $USER_HOME/.config/systemd/user/default.target.wants/wireplumber.service
-chown -R $USERNAME:$USERNAME $USER_HOME/.config
+capsule_ensure_dir "$WANTS" "$USERNAME:$USERNAME" 0755
+
+for unit in pipewire.service pipewire-pulse.service wireplumber.service; do
+    if [ -f "/usr/lib/systemd/user/$unit" ]; then
+        ln -sf "/usr/lib/systemd/user/$unit" "$WANTS/$unit"
+    else
+        warn "User unit $unit not installed — skipping"
+    fi
+done
+
+chown -R "$USERNAME:$USERNAME" "$USER_HOME/.config"
+log "Audio units enabled for $USERNAME"
