@@ -52,8 +52,8 @@ for HOME_DIR in /home/*; do
         continue
     fi
 
-    # Prefer the per-display config (per-GPU BusID) when preconfig-xorg.sh
-    # generated one; fall back to the global xorg.conf.
+    # Optional per-display config override (advanced); default is the shared
+    # dummy /etc/X11/xorg.conf.
     DISPLAY_XORG_CONFIG="/etc/X11/capsule/xorg.$INDEX.conf"
     if [ ! -f "$DISPLAY_XORG_CONFIG" ]; then
         DISPLAY_XORG_CONFIG="$XORG_CONFIG"
