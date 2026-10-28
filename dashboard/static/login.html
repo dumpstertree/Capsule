@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Capsule — Login</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="login-box">
+    <h1 class="login-title">Capsule <span class="dim">dashboard</span></h1>
+    <div class="error" id="error"></div>
+    <form id="login-form">
+      <input id="username" autocomplete="username" placeholder="username" value="admin" required>
+      <input id="password" type="password" autocomplete="current-password" placeholder="password" required>
+      <button type="submit" id="submit">Sign in</button>
+    </form>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

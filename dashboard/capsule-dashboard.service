@@ -1,0 +1,25 @@
+[Unit]
+Description=Capsule Dashboard (web control panel)
+Documentation=https://github.com/dumpstertree/Capsule
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Needs root: shells out to capsulectl which drives other users' systemd
+# managers. Everything else is locked down as far as that allows.
+ExecStart=/opt/capsule-dashboard/venv/bin/python /opt/capsule-dashboard/server.py
+WorkingDirectory=/opt/capsule-dashboard
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+PrivateTmp=yes
+ProtectSystem=full
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target
