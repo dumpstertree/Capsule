@@ -119,6 +119,31 @@ user's lingered manager starts `capsule@<user>.service` (Steam Big Picture +
 Sunshine). `start-stream.sh` is safe to run manually too — it validates the
 environment instead of failing deep inside Steam.
 
+## Game libraries & non-Steam games
+
+```bash
+# Add a drive as a Steam library (mount it into the container first —
+# Proxmox bind mount in /etc/pve/lxc/<ct>.conf):
+capsule-import.sh add-library capsule0 /mnt/games
+capsule-import.sh list-libraries capsule0
+
+# Import a non-Steam game with full metadata + artwork (needs
+# STEAMGRIDDB_API_KEY for matching/art; --no-art or empty key = plain import):
+capsule-import.sh add-game capsule0 /mnt/games/Doom64/doom64.exe --name "Doom 64"
+capsule-import.sh add-game capsule0 /mnt/games/SomeGame/game.exe \
+    --sgdb-id 1234 --launch-options "-w 1920 -h 1080"
+capsule-import.sh list-games capsule0
+capsule-import.sh remove-game capsule0 "Doom 64"
+```
+
+Write operations stop that user's Steam (it rewrites its own config on exit
+and would clobber the edits), write the entries, fix ownership, and relaunch
+Steam if the capsule was streaming. Games appear in Steam's Non-Steam list;
+SteamGridDB art (capsule/portrait/hero/logo/icon) lands in the locations
+Big Picture discovers, and game metadata is recorded under
+`PERSISTENT_DATA_PATH/metadata/` — the same convention `generate-shortcuts.sh`
+uses, and both generators now preserve entries they don't own.
+
 ## Dashboard
 
 ```bash
@@ -149,6 +174,7 @@ capsulectl              root CLI: list/status/start/stop/restart (+ --json)
 start-host.sh           start Xorg displays (capsule-host.service)
 start-stream.sh         Steam+Sunshine launcher (capsule@.service / manual)
 data-sync.sh            bidirectional save sync (compatdata <-> persistent)
+capsule-import.{sh,py}  Steam library drives + non-Steam game imports
 generate-shortcuts.{sh,py}
 dashboard/              FastAPI control panel
 capsule-fix.sh          one-shot repair/migration for existing installs

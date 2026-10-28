@@ -447,6 +447,7 @@ for home_dir in Path("/home").iterdir():
         )
 
     entries = {}
+    managed_appids = set()  # appids this script owns; everything else survives
 
     index = 0
 
@@ -591,8 +592,27 @@ for home_dir in Path("/home").iterdir():
         index += 1
 
     ############################################################################
-    # WRITE SHORTCUTS
+    # WRITE SHORTCUTS  (merge: keep entries this script does not manage —
+    # shortcuts added via Steam's own UI or capsule-import.sh — so a
+    # regeneration never wipes manual imports)
     ############################################################################
+
+    managed_appids = {e.get("appid") for e in entries.values()}
+
+    if shortcuts_file.exists():
+        try:
+            with open(shortcuts_file, "rb") as f:
+                existing = (vdf.binary_load(f) or {}).get("shortcuts") or {}
+            kept = 0
+            for entry in existing.values():
+                if entry.get("appid") not in managed_appids:
+                    entries[str(index)] = entry
+                    index += 1
+                    kept += 1
+            if kept:
+                print(f"Preserving {kept} manually added shortcut(s)")
+        except Exception:
+            print("WARNING: existing shortcuts.vdf unreadable — rebuilding it")
 
     shortcuts = {
         "shortcuts": entries
