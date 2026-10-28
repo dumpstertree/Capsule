@@ -57,10 +57,26 @@ GAMES_PATH=/games
 PERSISTENT_DATA_PATH=/raid/capsule
 SUNSHINE_ALLOWED_ORIGINS=https://192.168.1.125
 STEAMGRIDDB_API_KEY=...
+CAPSULE_GPU_BUSIDS=PCI:18:0:0,PCI:48:0:0
 SUNSHINE_BASE_PORT=47989
 SUNSHINE_PORT_STEP=1000
 CAPSULE_USER_PREFIX=capsule
 ```
+
+## Multiple GPUs / displays
+
+Two GPU-backed Xorg servers can never share one physical GPU — DRM master is
+exclusive per card (`device is not DRM master` in `/var/log/Xorg.N.log`). Give
+each capsule its own GPU:
+
+1. Pass each GPU's card+render node into the LXC (`dev0: /dev/dri/card1`,
+   `dev3: /dev/dri/card2`, plus matching `renderD*`; the
+   `/dev/dri/by-path` bind covers naming).
+2. Set `CAPSULE_GPU_BUSIDS` in `/etc/capsule/config` — one xorg BusID per
+   capsule index, **decimal** bus numbers (`lspci` shows `0000:30:00.0` =
+   hex → `PCI:48:0:0`).
+3. `preconfig-xorg.sh` then generates `/etc/X11/capsule/xorg.<N>.conf` per
+   display and `start-host.sh` uses them automatically.
 
 ## Operating
 

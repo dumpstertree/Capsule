@@ -52,6 +52,13 @@ for HOME_DIR in /home/*; do
         continue
     fi
 
+    # Prefer the per-display config (per-GPU BusID) when preconfig-xorg.sh
+    # generated one; fall back to the global xorg.conf.
+    DISPLAY_XORG_CONFIG="/etc/X11/capsule/xorg.$INDEX.conf"
+    if [ ! -f "$DISPLAY_XORG_CONFIG" ]; then
+        DISPLAY_XORG_CONFIG="$XORG_CONFIG"
+    fi
+
     # A stale lock from a crashed Xorg blocks startup; clean it only when no
     # Xorg process actually holds it.
     if [ -f "/tmp/.X$INDEX-lock" ]; then
@@ -62,10 +69,10 @@ for HOME_DIR in /home/*; do
         fi
     fi
 
-    echo "Starting Xorg for $USERNAME on display $DISPLAY_NUM"
+    echo "Starting Xorg for $USERNAME on display $DISPLAY_NUM (config: $DISPLAY_XORG_CONFIG)"
     # shellcheck disable=SC2024  # log path is per-user, validated index
     Xorg "$DISPLAY_NUM" \
-        -config "$XORG_CONFIG" \
+        -config "$DISPLAY_XORG_CONFIG" \
         -noreset \
         -novtswitch \
         > "$LOG_DIR/xorg-$USERNAME.log" 2>&1 &

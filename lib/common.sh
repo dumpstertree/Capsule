@@ -40,6 +40,8 @@ CAPSULE_CONFIG="${CAPSULE_CONFIG:-$CAPSULE_DIR/config}"
 #   PERSISTENT_DATA_PATH       (none, required)
 #   SUNSHINE_ALLOWED_ORIGINS   (none, required)  comma separated https:// origins
 #   STEAMGRIDDB_API_KEY        (empty allowed)
+#   CAPSULE_GPU_BUSIDS         (empty allowed) comma separated per-capsule
+#                              xorg BusIDs, DECIMAL, e.g. PCI:18:0:0,PCI:48:0:0
 #   SUNSHINE_BASE_PORT         (47989)
 #   SUNSHINE_PORT_STEP         (1000)
 #   CAPSULE_USER_PREFIX        (capsule)
