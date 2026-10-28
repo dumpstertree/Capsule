@@ -80,11 +80,15 @@ Consequences to plan around:
   Steam's UI, slow for heavy native-GL games.
 * All capsules share the GPU's compute/VRAM — two heavy AAA titles at once
   contend, as expected.
-* **Render node mapping matters:** nodes pair by probe order
-  (`card0↔renderD128`, `card1↔renderD129`, …). Pass the render node of the
-  GPU you actually want used, resolved via
-  `ls -l /dev/dri/by-path/ | grep <pci-address>` on the host — do not guess
-  the number.
+* **Render node mapping matters:** pass the render node of the GPU you actually
+  want used, resolved on the host with
+  `ls -l /dev/dri/by-path/ | grep <pci-address>` — **never** derive it
+  arithmetically from the card number; probe order does not reliably pair
+  `cardN` with `renderD128+N` (on a real two-GPU box the RX 6800 at `12:00.0`
+  was `renderD128` while the iGPU at `30:00.0` owned `renderD129`).
+* **Dummy VideoRam:** the driver defaults to 4 MB of emulated VRAM, which is
+  under the ~8.3 MB a 1920x1080 32bpp framebuffer needs — the config sets
+  `Option "VideoRam" "65536"` and a raised `MaxClock` for the 1080p modeline.
 
 ## Operating
 
