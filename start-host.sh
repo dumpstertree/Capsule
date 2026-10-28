@@ -70,11 +70,24 @@ for HOME_DIR in /home/*; do
     fi
 
     echo "Starting Xorg for $USERNAME on display $DISPLAY_NUM (config: $DISPLAY_XORG_CONFIG)"
+
+    # Each Xorg needs its OWN virtual terminal: when a second X server takes
+    # VT ownership (VT_SETMODE), the kernel SIGTERMs the previous owner — and
+    # in a container without real VTs, auto-allocation parks every server on
+    # /dev/tty7, so each display silently kills the one before it. -novtswitch
+    # only prevents switching, not ownership. Assign tty(7+index) explicitly.
+    VT_NUM=$((7 + INDEX))
+    if [ "$VT_NUM" -gt 63 ]; then
+        warn "Index $INDEX exceeds VT range; reusing tty7 for $USERNAME"
+        VT_NUM=7
+    fi
+
     # shellcheck disable=SC2024  # log path is per-user, validated index
     Xorg "$DISPLAY_NUM" \
         -config "$DISPLAY_XORG_CONFIG" \
         -noreset \
         -novtswitch \
+        -vt"$VT_NUM" \
         > "$LOG_DIR/xorg-$USERNAME.log" 2>&1 &
 
     # Wait up to 10s for the socket to appear.

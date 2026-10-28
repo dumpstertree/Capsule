@@ -86,6 +86,12 @@ Consequences to plan around:
   arithmetically from the card number; probe order does not reliably pair
   `cardN` with `renderD128+N` (on a real two-GPU box the RX 6800 at `12:00.0`
   was `renderD128` while the iGPU at `30:00.0` owned `renderD129`).
+* **One VT per display:** when a second X server takes VT ownership the kernel
+  SIGTERMs the previous owner, and inside a container (no real VTs) every
+  auto-allocated server lands on `/dev/tty7` — so display `:1` kills display
+  `:0` ~1s after startup (`Server terminated successfully (0)` in
+  `Xorg.0.log`). `start-host.sh` passes `-vt(7+index)` to each server;
+  `-novtswitch` alone does NOT prevent this.
 * **Dummy VideoRam:** the driver defaults to 4 MB of emulated VRAM, under the
   ~8.3 MB a 1920x1080 32bpp framebuffer needs. It must be set as the **bare**
   Device entry `VideoRam 65536` — dummy 0.4.x's option table only knows
