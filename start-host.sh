@@ -125,4 +125,8 @@ echo "Xorg displays started: $started, already running: $skipped, failed: $faile
 if [ "$started" -eq 0 ] && [ "$skipped" -eq 0 ]; then
     error "No capsule displays could be started"
 fi
-[ "$failed" -gt 0 ] && exit 0   # partial success stays "active"
+# Explicit success: a bare test as the last line leaks its result into the
+# script's exit code — the old "[ failed -gt 0 ] && exit 0" line exited 1 on
+# fully-successful runs, and the unit's cgroup purge then killed the
+# healthy Xorgs.
+exit 0
