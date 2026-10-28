@@ -131,6 +131,13 @@ for HOME_DIR in /home/capsule*/; do
     capsule_ensure_dir "$PERSISTENT_DATA_PATH/backups/$USERNAME" "$USERNAME:$USERNAME" 0755
     capsule_ensure_dir "$USER_HOME/.steam/steam/steamapps/compatdata" "$USERNAME:$USERNAME" 0755
 
+    # Root-owned leftovers in a capsule home put Steam in a repair loop
+    # ("ln: failed to create symbolic link ... Permission denied").
+    if [ -n "$(find "$USER_HOME" -maxdepth 4 ! -user "$USERNAME" -print -quit 2>/dev/null)" ]; then
+        warn "Fixing files not owned by $USERNAME under $USER_HOME"
+        chown -R "$USERNAME:$USERNAME" "$USER_HOME"
+    fi
+
     # 6. units: remove legacy per-user copy, install template + wants symlink
     rm -f /usr/lib/systemd/user/capsule.service \
           "$USER_HOME/.config/systemd/user/capsule.service" \
