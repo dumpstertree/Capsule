@@ -8,7 +8,8 @@
 #   UI (HTTPS) = base + 1   <- the URL you browse to, e.g. https://host:47990
 #   Moonlight/streaming ports = base-5 .. base+21
 #
-# Credentials: a strong random password is generated per capsule, stored
+# Credentials: login "capsule"; password strong-random by default, or static
+# via SUNSHINE_CREDS_PASSWORD=... (see the Credentials block below). Stored
 # (root-readable) in /etc/capsule/sunshine-creds/<user> and printed once.
 # =============================================================================
 set -euo pipefail
@@ -60,12 +61,22 @@ CREDS_DIR="$CAPSULE_DIR/sunshine-creds"
 capsule_ensure_dir "$CREDS_DIR" root 0700
 CRED_FILE="$CREDS_DIR/$USERNAME"
 
-if [ -f "$CRED_FILE" ] && [ "${CAPSULE_SUNSHINE_RESET_CREDS:-0}" != "1" ]; then
+# Credentials: username is fixed ("capsule"). Password defaults to a strong
+# random one; set SUNSHINE_CREDS_PASSWORD to pin a static password instead
+# (fine while the UI stays LAN-scoped, weak if you ever expose 47990/48990).
+# Kept env-only — /etc/capsule/config is group-readable by capsule users.
+# The generated/used value is stored in /etc/capsule/sunshine-creds/<user>
+# (root-only, format user:password) and printed once.
+if [ -f "$CRED_FILE" ] && [ "${CAPSULE_SUNSHINE_RESET_CREDS:-0}" != "1" ] \
+        && [ -z "${SUNSHINE_CREDS_PASSWORD:-}" ]; then
     log "Keeping existing Sunshine credentials for $USERNAME ($CRED_FILE)"
-    SUN_PASS="$(cut -d: -f2 "$CRED_FILE")"
 else
     SUN_USER="capsule"
-    SUN_PASS="$(openssl rand -base64 15 | tr -d '/+=' | head -c 16)"
+    if [ -n "${SUNSHINE_CREDS_PASSWORD:-}" ]; then
+        SUN_PASS="$SUNSHINE_CREDS_PASSWORD"
+    else
+        SUN_PASS="$(openssl rand -base64 15 | tr -d '/+=' | head -c 16)"
+    fi
     printf '%s:%s\n' "$SUN_USER" "$SUN_PASS" > "$CRED_FILE"
     chmod 0600 "$CRED_FILE"
     runuser -u "$USERNAME" -- sunshine --creds "$SUN_USER" "$SUN_PASS"
