@@ -66,11 +66,14 @@ unit_state() {
     esac
 }
 
+b() { [ "$1" = "yes" ] && echo true || echo false; }
+
 capsule_info_json() {
     # One JSON object for capsule $1 (caller composes the array)
     capsule_info "$1"
     printf '{"user":"%s","index":%s,"state":"%s","stream_port":%s,"ui_port":%s,"sunshine_listening":%s,"steam_running":%s,"xorg_up":%s,"home":"/home/%s"}' \
-        "$(json_escape "$I_USER")" "$I_INDEX" "$I_STATE" "$I_BASE" "$I_UI" "$I_LISTEN" "$I_STEAM" "$I_XORG" "$(json_escape "$I_USER")"
+        "$(json_escape "$I_USER")" "$I_INDEX" "$I_STATE" "$I_BASE" "$I_UI" \
+        "$(b "$I_LISTEN")" "$(b "$I_STEAM")" "$(b "$I_XORG")" "$(json_escape "$I_USER")"
 }
 
 capsule_info() {

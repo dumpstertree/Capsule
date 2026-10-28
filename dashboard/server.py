@@ -313,8 +313,10 @@ def api_capsules(request: Request):
             {"detail": f"capsulectl failed: {err_text.strip() or out.strip()}"}, status_code=500))
     try:
         capsules = json.loads(out or "[]")
-    except json.JSONDecodeError:
-        return security_headers(JSONResponse({"detail": "bad capsulectl JSON"}, status_code=500))
+    except json.JSONDecodeError as exc:
+        log.error("bad capsulectl JSON: %s | raw=%r", exc, out[:400])
+        return security_headers(JSONResponse(
+            {"detail": f"bad capsulectl JSON: {exc} | raw: {out[:200]}"}, status_code=500))
 
     # sunshine links: configured host wins, else request host (no port)
     host = CONFIG.capsule_host

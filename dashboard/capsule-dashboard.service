@@ -13,7 +13,8 @@ WorkingDirectory=/opt/capsule-dashboard
 Restart=on-failure
 RestartSec=5
 Environment=PYTHONUNBUFFERED=1
-PrivateTmp=yes
+# NOTE: no PrivateTmp — the capsulectl status path must see /tmp/.X11-unix
+# to detect Xorg displays.
 ProtectSystem=full
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
