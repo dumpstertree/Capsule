@@ -86,9 +86,14 @@ Consequences to plan around:
   arithmetically from the card number; probe order does not reliably pair
   `cardN` with `renderD128+N` (on a real two-GPU box the RX 6800 at `12:00.0`
   was `renderD128` while the iGPU at `30:00.0` owned `renderD129`).
-* **Dummy VideoRam:** the driver defaults to 4 MB of emulated VRAM, which is
-  under the ~8.3 MB a 1920x1080 32bpp framebuffer needs — the config sets
-  `Option "VideoRam" "65536"` and a raised `MaxClock` for the 1080p modeline.
+* **Dummy VideoRam:** the driver defaults to 4 MB of emulated VRAM, under the
+  ~8.3 MB a 1920x1080 32bpp framebuffer needs. It must be set as the **bare**
+  Device entry `VideoRam 65536` — dummy 0.4.x's option table only knows
+  `SWcursor`, so `Option "VideoRam"` is silently ignored (log shows
+  `(--) VideoRAM: 4096 kByte` — `(--)` means "default", `(**)` would mean
+  "read from config"). Likewise the Monitor needs explicit `HorizSync`/
+  `VertRefresh` ranges, or the default 65 MHz pixel-clock cap prunes the
+  1080p modeline.
 
 ## Operating
 
