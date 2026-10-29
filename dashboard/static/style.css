@@ -178,6 +178,7 @@ button.primary { border-color: rgba(63, 185, 80, 0.5); color: var(--green); }
 
 .hint { color: var(--muted); font-size: 0.75rem; margin-top: 2px; }
 .dim { color: var(--muted); }
+#mgr-notice { white-space: pre-wrap; max-height: 200px; overflow-y: auto; font-family: ui-monospace, monospace; font-size: 0.78rem; }
 
 /* folder browser */
 .browser { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 12px; }

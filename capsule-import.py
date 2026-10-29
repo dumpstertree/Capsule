@@ -27,7 +27,9 @@ import pwd
 import shutil
 import sys
 import zlib
+from difflib import SequenceMatcher
 from pathlib import Path
+from urllib.parse import quote
 
 import requests
 import vdf
@@ -342,76 +344,155 @@ def save_metadata(name, data):
 # GAME COMMANDS
 ###############################################################################
 
+EXE_BLACKLIST = [
+    "setup", "uninstall", "updater", "launcher", "config", "crash",
+    "helper", "benchmark", "redist", "redistributable", "vc_redist",
+    "dxsetup",
+]
 
-def cmd_add_game(user, args):
-    steam = steam_root(user)
-    cfg = config_dir(steam)
-    grid_dir = cfg / "grid"
-    shortcuts_file = cfg / "shortcuts.vdf"
 
-    exe = Path(args.exe).expanduser().resolve()
+def normalize(name):
+    return "".join(c for c in name.lower() if c.isalnum())
+
+
+def find_best_exe(game_dir):
+    """Pick the most game-like .exe in a folder tree — same heuristic as
+    generate-shortcuts.py (blacklist junk, fuzzy-match folder name,
+    prefer shallow paths)."""
+    exes = []
+    for exe in game_dir.rglob("*"):
+        if exe.is_file() and exe.suffix.lower() == ".exe":  # case-insensitive: DOOM64.EXE too
+            exes.append(exe)
+            if len(exes) >= 500:
+                break
+    if not exes:
+        return None
+
+    folder = normalize(game_dir.name)
+    best, best_score = None, -1.0
+    for exe in exes:
+        stem = normalize(exe.stem)
+        if any(b in stem for b in EXE_BLACKLIST):
+            continue
+        score = SequenceMatcher(None, folder, stem).ratio() * 100
+        score -= (len(exe.relative_to(game_dir).parts) - 1) * 5  # shallower wins
+        if score > best_score:
+            best, best_score = exe, score
+    return best or exes[0]
+
+
+def import_one(exe, name, startdir, sgdb_id, launch_options,
+               entries, cfg, grid_dir, dry=False, use_sgdb=True):
+    """Import/update one shortcut in the entries list (in place).
+    Returns (status, one-line summary)."""
+    exe = Path(exe).expanduser().resolve()
     if not exe.is_file():
-        fail(f"executable not found: {exe}")
-    name = args.name or exe.stem
-    startdir = str(Path(args.startdir).expanduser().resolve()) if args.startdir \
-        else str(exe.parent)
+        return "error", f"not a file: {exe}"
+    name = (name or exe.stem).strip()
+    startdir = str(Path(startdir).expanduser().resolve()) if startdir else str(exe.parent)
 
-    print(f"game:    {name}")
-    print(f"exe:     {exe}")
-    print(f"startdir:{startdir}")
+    if dry:
+        return "would-import", f"{name} -> {exe}"
 
     steam_appid = None
-    sgdb_id = args.sgdb_id
-    official_name = name
-
-    if SGDB_KEY and not args.no_art:
+    official = name
+    if SGDB_KEY and use_sgdb:
         if not sgdb_id:
             data = sgdb_json(
-                "https://www.steamgriddb.com/api/v2/search/autocomplete/" + name)
+                "https://www.steamgriddb.com/api/v2/search/autocomplete/" + quote(name))
             items = (data or {}).get("data") or []
             if items:
                 sgdb_id = items[0]["id"]
-                official_name = items[0].get("name", name)
+                official = items[0].get("name", name)
                 steam_appid = items[0].get("steamAppId")
-                print(f"sgdb:    {official_name} (id {sgdb_id})")
-            else:
-                print("sgdb:    no match — importing without artwork")
+        if sgdb_id:
+            fetch_art(sgdb_id,
+                      generate_shortcut_appid(official, str(exe)) & 0xFFFFFFFF,
+                      cfg, grid_dir)
 
-    entry = shortcut_template(official_name, exe, startdir, args.launch_options)
+    entry = shortcut_template(official, exe, startdir, launch_options)
     unsigned = entry["appid"] & 0xFFFFFFFF
 
-    if SGDB_KEY and not args.no_art and sgdb_id:
-        fetch_art(sgdb_id, unsigned, cfg, grid_dir)
-    elif args.no_art:
-        print("sgdb:    skipped (--no-art)")
-    elif not SGDB_KEY:
-        print("sgdb:    no API key set — importing without artwork")
-
-    entries = list(load_shortcuts(shortcuts_file).values())
-    replaced = False
+    status = "added"
     for i, existing in enumerate(entries):
         if existing.get("appid") == entry["appid"] or \
-                str(existing.get("appname", "")).lower() == official_name.lower():
+                str(existing.get("appname", "")).lower() == official.lower():
             entries[i] = entry  # idempotent re-import: update in place
-            replaced = True
-    if not replaced:
+            status = "updated"
+            break
+    else:
         entries.append(entry)
-    save_shortcuts(shortcuts_file, entries)
-    chown_later(cfg)
 
-    save_metadata(official_name, {
-        "folder_name": official_name,
+    save_metadata(official, {
+        "folder_name": official,
         "shortcut_appid": entry["appid"],
         "steam_appid": steam_appid,
-        "official_name": official_name,
+        "official_name": official,
         "steamgriddb_id": sgdb_id,
         "exe": str(exe),
         "startdir": startdir,
         "source": "capsule-import",
     })
+    return status, f"{official} (appid {unsigned})"
 
-    print(f"{'updated' if replaced else 'added'} shortcut "
-          f"(appid {unsigned}) — {official_name}")
+
+def cmd_add_game(user, args):
+    steam = steam_root(user)
+    cfg = config_dir(steam)
+    shortcuts_file = cfg / "shortcuts.vdf"
+
+    entries = list(load_shortcuts(shortcuts_file).values())
+    status, line = import_one(
+        args.exe, args.name, args.startdir, args.sgdb_id,
+        args.launch_options, entries, cfg, cfg / "grid",
+        use_sgdb=not args.no_art,
+    )
+    if status == "error":
+        fail(line)
+    save_shortcuts(shortcuts_file, entries)
+    chown_later(cfg)
+    print(f"{status} shortcut — {line}")
+    print("visible in Steam's Non-Steam list after Steam (re)starts")
+
+
+def cmd_import_dir(user, args):
+    """Batch import: every immediate subfolder containing an .exe becomes a
+    shortcut (best-exe heuristic + SteamGridDB matching), like the old
+    generate-shortcuts scan but per-user and idempotent."""
+    steam = steam_root(user)
+    cfg = config_dir(steam)
+    grid_dir = cfg / "grid"
+    shortcuts_file = cfg / "shortcuts.vdf"
+
+    root = Path(args.dir).expanduser().resolve()
+    if not root.is_dir():
+        fail(f"{root} does not exist (mounted inside the container?)")
+
+    game_dirs = sorted(d for d in root.iterdir()
+                       if d.is_dir() and not d.name.startswith(".")
+                       and find_best_exe(d))
+    if not game_dirs:
+        if find_best_exe(root):
+            game_dirs = [root]  # the folder itself is one game
+        else:
+            fail(f"no .exe files found under {root}")
+
+    entries = list(load_shortcuts(shortcuts_file).values())
+    counts = {}
+    for game_dir in game_dirs:
+        exe = find_best_exe(game_dir)
+        status, line = import_one(exe, game_dir.name, None, None, "",
+                                  entries, cfg, grid_dir, dry=args.dry_run)
+        print(f"  [{status}] {game_dir.name}: {line}")
+        counts[status] = counts.get(status, 0) + 1
+
+    if args.dry_run:
+        print(f"preview of {len(game_dirs)} folder(s) — nothing written")
+        return
+
+    save_shortcuts(shortcuts_file, entries)
+    chown_later(cfg)
+    print("done: " + ", ".join(f"{k} {v}" for k, v in sorted(counts.items())))
     print("visible in Steam's Non-Steam list after Steam (re)starts")
 
 
@@ -489,6 +570,12 @@ def main():
     p.add_argument("--launch-options", default="", help="extra command-line args")
     p.add_argument("--no-art", action="store_true", help="skip SteamGridDB entirely")
 
+    p = sub.add_parser("import-dir",
+                       help="batch import: every subfolder with an .exe becomes a shortcut")
+    p.add_argument("user")
+    p.add_argument("dir")
+    p.add_argument("--dry-run", action="store_true", help="preview, write nothing")
+
     p = sub.add_parser("remove-game", help="remove a non-Steam shortcut")
     p.add_argument("user")
     p.add_argument("target", help="game name or appid")
@@ -503,6 +590,7 @@ def main():
         "remove-library": cmd_remove_library,
         "list-libraries": cmd_list_libraries,
         "add-game": cmd_add_game,
+        "import-dir": cmd_import_dir,
         "remove-game": cmd_remove_game,
         "list-games": cmd_list_games,
     }

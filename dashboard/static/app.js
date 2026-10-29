@@ -347,6 +347,18 @@ function initManager() {
   });
   mgr("game-browse").addEventListener("click", () => showBrowser(mgr("game-exe"), true));
 
+  const scan = (dryRun) => {
+    const path = mgr("game-dir").value.trim();
+    if (!path) { mgrNotice("pick the folder full of games first"); return; }
+    mgrNotice(dryRun ? "scanning…" : "importing everything — Steam will restart, artwork downloads take a while…", false);
+    mgrCall("POST", "/scan", { path, dry_run: dryRun }, () => {
+      if (!dryRun) { mgr("game-dir").value = ""; loadGames(); }
+    });
+  };
+  mgr("dir-scan").addEventListener("click", () => scan(false));
+  mgr("dir-preview").addEventListener("click", () => scan(true));
+  mgr("dir-browse").addEventListener("click", () => showBrowser(mgr("game-dir"), false));
+
   mgr("browser-up").addEventListener("click", () => {
     const up = browsePath.replace(/\/+$/, "").replace(/[^/]*$/, "");
     openBrowser(up || "/");

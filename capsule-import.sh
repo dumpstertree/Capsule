@@ -7,6 +7,7 @@
 #   capsule-import.sh list-libraries <user>
 #   capsule-import.sh add-game       <user> <exe> [--name N] [--startdir D]
 #                                    [--sgdb-id ID] [--launch-options S] [--no-art]
+#   capsule-import.sh import-dir     <user> <dir> [--dry-run]   (batch)
 #   capsule-import.sh remove-game    <user> <name|appid>
 #   capsule-import.sh list-games     <user>
 #
@@ -37,7 +38,7 @@ SUBCMD="${1:-}"
 USERNAME="${2:-}"
 
 case "$SUBCMD" in
-    add-library|remove-library|list-libraries|add-game|remove-game|list-games) ;;
+    add-library|remove-library|list-libraries|add-game|import-dir|remove-game|list-games) ;;
     *) usage ;;
 esac
 [ -n "$USERNAME" ] || usage
@@ -45,7 +46,7 @@ capsule_valid_username "$USERNAME" || error "Invalid username '$USERNAME'"
 
 USER_HOME="$(capsule_user_home "$USERNAME")"
 
-WRITE_OPS=" add-library remove-library add-game remove-game "
+WRITE_OPS=" add-library remove-library add-game import-dir remove-game "
 WAS_STREAMING=0
 
 if [[ "$WRITE_OPS" == *" $SUBCMD "* ]]; then

@@ -135,6 +135,11 @@ capsule-import.sh list-libraries capsule0
 capsule-import.sh add-game capsule0 /mnt/games/Doom64/doom64.exe --name "Doom 64"
 capsule-import.sh add-game capsule0 /mnt/games/SomeGame/game.exe \
     --sgdb-id 1234 --launch-options "-w 1920 -h 1080"
+
+# Batch: every subfolder containing an .exe becomes a shortcut (same
+# best-exe heuristic as generate-shortcuts.sh; idempotent — re-running
+# updates entries instead of duplicating; --dry-run previews)
+capsule-import.sh import-dir capsule0 /mnt/games
 capsule-import.sh list-games capsule0
 capsule-import.sh remove-game capsule0 "Doom 64"
 ```
@@ -157,7 +162,8 @@ FastAPI on `https://<container>:8443`: capsule list, live status (Xorg /
 Sunshine / Steam), power on/off/restart, direct Sunshine UI links, and a
 **Games** button per capsule — add/remove Steam library drives (with a
 server-side folder browser) and import non-Steam games with SteamGridDB
-artwork, all from forms, no shell needed. Single admin account
+artwork — one at a time or **Import all** from a folder, full preview
+mode included. All from forms, no shell needed. Single admin account
 (scrypt-hashed), HMAC sessions, CSRF-protected POSTs, login rate
 limiting, self-signed cert (swap in your own `key.pem`/`cert.pem` under
 `/etc/capsule/dashboard/`). Put it behind your reverse proxy or port-forward —

@@ -316,6 +316,11 @@ class GameRemoveBody(BaseModel):
     target: str
 
 
+class ScanBody(BaseModel):
+    path: str
+    dry_run: bool = False
+
+
 def security_headers(response):
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-Content-Type-Options"] = "nosniff"
@@ -503,6 +508,24 @@ def api_games_add(name: str, body: GameBody, request: Request):
     if err:
         return security_headers(JSONResponse({"detail": err}, status_code=500))
     log.info("capsule %s: imported game %s", name, body.exe)
+    return security_headers(JSONResponse(data))
+
+
+@app.post("/api/capsules/{name}/scan")
+def api_games_scan(name: str, body: ScanBody, request: Request):
+    """Batch import: every subfolder of path with an .exe becomes a shortcut."""
+    if err := check_capsule(request, name, csrf=True):
+        return security_headers(err)
+    if not body.path.startswith("/") or not safe_text(body.path):
+        return security_headers(JSONResponse(
+            {"detail": "path must be absolute (e.g. /mnt/games)"}, status_code=400))
+    args = ["import-dir", name, body.path.rstrip("/") or "/"]
+    if body.dry_run:
+        args.append("--dry-run")
+    data, err = capsule_import(args, timeout=900)
+    if err:
+        return security_headers(JSONResponse({"detail": err}, status_code=500))
+    log.info("capsule %s: scan %s (dry_run=%s)", name, body.path, body.dry_run)
     return security_headers(JSONResponse(data))
 
 
