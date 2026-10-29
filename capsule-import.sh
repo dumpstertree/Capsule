@@ -88,10 +88,14 @@ if [[ "$WRITE_OPS" == *" $SUBCMD "* ]] && [ "$WAS_STREAMING" -eq 1 ]; then
     INDEX="$(capsule_read_user_index "$USER_HOME/capsule.config" 2>/dev/null || echo "")"
     if [ -n "$INDEX" ]; then
         log "Relaunching Steam for $USERNAME on display :$INDEX"
-        capsule_run_user "$USERNAME" -- env DISPLAY=":$INDEX" \
+        # Same launch path as capsule startup (inject.sh honours the gamescope
+        # marker). KillMode=process: inject.sh backgrounds Steam and exits —
+        # the transient unit must not take Steam down with it.
+        capsule_run_user "$USERNAME" -- env DISPLAY=":$INDEX" HOME="$USER_HOME" \
+            CAPSULE_GAMESCOPE_OPTS="$(capsule_conf_get CAPSULE_GAMESCOPE_OPTS "")" \
             systemd-run --user --quiet --no-block \
-                --unit "capsule-steam-import-$$" \
-                steam -bigpicture -fulldesktopres \
+                --unit "capsule-steam-import-$$" --property KillMode=process \
+                sh "$SCRIPT_DIR/inject.sh" \
             || warn "Steam relaunch failed — capsulectl restart $USERNAME"
     fi
 fi

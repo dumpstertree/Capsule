@@ -132,6 +132,35 @@ their `(seatN)` suffix in `ls /sys/class/input/*/device/name`). With
 controllers, disable foreign pads in Steam → Settings → Controller, or keep
 to one pad-connected capsule at a time.
 
+## Software rendering on dummy displays (gamescope mode)
+
+A dummy X server has no GLX — Steam's UI renders via llvmpipe (CPU, tens of
+% per capsule). `AutoAddGPU` does NOT help: X can only offload to a GPU
+attached to a real base screen, never to a dummy one. The fix is
+**gamescope**, which runs its own compositor with an EGL context directly on
+the DRM render node (hardware RX 6800) — Steam gets hardware GL inside it,
+and the dummy X server only receives one full-screen blit per frame.
+
+Enable per capsule:
+
+```bash
+mkdir -p /home/capsule1/.config/capsule
+touch /home/capsule1/.config/capsule/gamescope
+capsulectl restart capsule1
+```
+
+- Only capsules on **dummy** displays need it; a capsule whose X server is
+  GPU-backed (`CAPSULE_GPU_DISPLAYS`) already renders in hardware — don't
+  wrap it (pure nesting overhead).
+- Extra gamescope flags go in `/etc/capsule/config`:
+  `CAPSULE_GAMESCOPE_OPTS=--force-grab-cursor` (cursor tuning: if the mouse
+  doesn't land where Moonlight points it, or a double cursor appears,
+  `--force-grab-cursor` / `--hide-cursor` are the usual fixes).
+- Both launch paths honour the marker (capsule startup AND the Steam
+  relaunch after a live import) — everything goes through `inject.sh`.
+- Costs: +1 frame of latency, one small software blit/frame, one extra
+  package. Revert = `rm` the marker + restart.
+
 ## Operating
 
 ```bash

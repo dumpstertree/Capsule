@@ -56,6 +56,7 @@ BASE_PACKAGES=(
     xf86-video-amdgpu 
     libva-mesa-driver
     steam
+    gamescope
     mesa
     vulkan-radeon
     #cachyos

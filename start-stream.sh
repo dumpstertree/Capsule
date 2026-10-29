@@ -99,6 +99,10 @@ fi
 # --- Steam (Big Picture) ----------------------------------------------------------
 if ! pgrep -U "$(id -u)" -f 'steam.*bigpicture' >/dev/null 2>&1; then
     echo "Starting App"
+    # Extra gamescope flags for inject.sh's marker-driven gamescope mode
+    # (see inject.sh + README). Empty by default.
+    CAPSULE_GAMESCOPE_OPTS="$(capsule_conf_get CAPSULE_GAMESCOPE_OPTS "")"
+    export CAPSULE_GAMESCOPE_OPTS
     sh "$SCRIPT_DIR/inject.sh"
 fi
 
