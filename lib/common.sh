@@ -49,6 +49,18 @@ CAPSULE_CONFIG="${CAPSULE_CONFIG:-$CAPSULE_DIR/config}"
 #   SUNSHINE_BASE_PORT         (47989)
 #   SUNSHINE_PORT_STEP         (1000)
 #   CAPSULE_USER_PREFIX        (capsule)
+#   LLM_MODEL                  (qwen3-coder:30b) default model for llm capsules
+#   LLM_API_PORT               (11434)  Ollama / OpenAI-compatible API port
+#   LLM_WEB_PORT               (8080)   Open WebUI port
+#   LLM_MODELS_PATH            ($HOME/.ollama/models per llm capsule user)
+#   LLM_CONTEXT_LENGTH         (8192)   context tokens served per request
+#   LLM_KEEP_ALIVE             (240m)   how long the model stays VRAM-resident
+#   LLM_HSA_OVERRIDE           (10.3.0) ROCm gfx target (RX 6800 = gfx1030;
+#                              override is a no-op safety net there)
+#   LLM_HIP_VISIBLE_DEVICES    (empty)  pin ROCm to one GPU when several are
+#                              visible (e.g. hide an iGPU), ROCm index list
+#   LLM_VULKAN                 (empty)  "1" = force Ollama's Vulkan backend
+#                              (fallback when /dev/kfd is unavailable)
 #
 # Port layout per capsule index N (verified against Sunshine source):
 #   base      = SUNSHINE_BASE_PORT + N * SUNSHINE_PORT_STEP
@@ -206,4 +218,16 @@ capsule_read_user_index() {
     index="$(head -n1 "$file" | tr -d '[:space:]')"
     capsule_valid_index "$index" || return 1
     printf '%s' "$index"
+}
+
+capsule_read_user_type() {
+    # Capsule role from an optional "TYPE=llm" line in $HOME/capsule.config.
+    # Line 1 stays the display index; absent/unknown TYPE means "game", so
+    # every config written before llm capsules keeps working untouched.
+    local file="$1" type=""
+    if [ -f "$file" ]; then
+        type="$(grep -m1 '^TYPE=' "$file" 2>/dev/null | cut -d= -f2- | tr -d '[:space:]')"
+    fi
+    [ -n "$type" ] || type="game"
+    printf '%s' "$type"
 }

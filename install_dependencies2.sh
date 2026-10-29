@@ -58,6 +58,10 @@ BASE_PACKAGES=(
     steam
     mesa
     vulkan-radeon
+    # llm capsule (see preconfig-llm.sh): ollama-rocm = ROCm build of ollama,
+    # uv = python toolchain used to install Open WebUI (needs py3.12 runtime)
+    ollama-rocm
+    uv
     #cachyos
     #cachyos-mesa 
     #cachyos-ffmpeg

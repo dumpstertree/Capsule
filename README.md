@@ -132,6 +132,83 @@ their `(seatN)` suffix in `ls /sys/class/input/*/device/name`). With
 controllers, disable foreign pads in Steam → Settings → Controller, or keep
 to one pad-connected capsule at a time.
 
+## LLM capsule (Ollama + Open WebUI) — exclusive-GPU mode
+
+A capsule can be a headless local-LLM host instead of a stream target:
+**Ollama** (model runtime + OpenAI-compatible API) with **Open WebUI** (chat
+frontend), running **Qwen3-Coder** on the RX 6800 via ROCm. No X display, no
+Sunshine, no Moonlight — you reach it from any browser or coding tool on the
+LAN. Because a loaded 30B model occupies most of the GPU's 16 GB VRAM, the
+LLM capsule and the game capsule(s) take turns via one command:
+
+```bash
+capsulectl use llm     # stop game capsule(s) -> start LLM stack
+capsulectl use games   # stop LLM (VRAM freed) -> start game capsule(s)
+capsulectl list        # shows TYPE column + active mode
+```
+
+### Setup (once)
+
+1. **Container needs `/dev/kfd`** (ROCm compute device). Add to
+   `/etc/pve/lxc/<CT>.conf` on the PVE host (see `example-lxc.conf`) and
+   reboot the container:
+   ```
+   lxc.cgroup2.devices.allow: c 10:123 rwm
+   lxc.mount.entry: /dev/kfd dev/kfd none bind,optional,create=file
+   ```
+2. Convert a capsule (does NOT need to be re-created — any user works):
+   ```bash
+   ./preconfig-llm.sh capsule1      # installs, marks TYPE=llm, pulls model (~19 GB)
+   ```
+   The marker is one line — `TYPE=llm` — in `/home/capsule1/capsule.config`.
+   llm capsules are skipped by `start-host.sh` (no X display) and
+   `start-stream.sh` routes them to `start-llm.sh` (no Sunshine/Steam).
+3. `capsulectl use llm`, browse to `http://<container>:8080`, create the
+   **first account — it becomes admin** (then disable signups in Settings →
+   General once yours exists; the API is open LAN-wide by design).
+
+### Using it
+
+* **Chat / admin:** `http://<container>:8080`
+* **Coding agents** — OpenAI-compatible endpoint `http://<container>:11434/v1`,
+  model `qwen3-coder:30b`, any API key. OpenCode example
+  (`~/.config/opencode/opencode.json`):
+  ```json
+  {
+    "$schema": "https://opencode.ai/config.json",
+    "provider": {
+      "capsule": {
+        "npm": "@ai-sdk/openai-compatible",
+        "name": "Capsule LLM",
+        "options": { "baseURL": "http://192.168.1.125:11434/v1" },
+        "models": { "qwen3-coder:30b": { "name": "Qwen3-Coder 30B" } }
+      }
+    }
+  }
+  ```
+* **Models:** change the default with `LLM_MODEL=...` in `/etc/capsule/config`
+  (then re-pull via `preconfig-llm.sh <user>` or as the user:
+  `runuser -u capsule1 -- env OLLAMA_MODELS=/home/capsule1/.ollama/models ollama pull <model>`).
+  For 16 GB VRAM: `qwen3-coder:30b` (Q4, a slice spills to system RAM —
+  fine, it's a 3B-active MoE) or a `q3_K_M` variant for 100% GPU load.
+
+### Config keys (`/etc/capsule/config`, all optional)
+
+`LLM_MODEL` (qwen3-coder:30b) · `LLM_API_PORT` (11434) · `LLM_WEB_PORT` (8080)
+· `LLM_MODELS_PATH` (~/.ollama/models) · `LLM_CONTEXT_LENGTH` (8192) ·
+`LLM_KEEP_ALIVE` (240m — model stays loaded in VRAM) · `LLM_HSA_OVERRIDE`
+(10.3.0 = gfx1030/RX 6800) · `LLM_HIP_VISIBLE_DEVICES` (pin ROCm when an iGPU
+is also visible — ROCm has been seen preferring it) · `LLM_VULKAN=1` (force
+Ollama's Vulkan backend if `/dev/kfd` is unavailable).
+
+### Verifying the GPU is actually used
+
+`ollama ps` (as the capsule user) must show `100% GPU`; the journal shows the
+ROCm probe: `journalctl --user -u capsule@capsule1 | grep -iE "gfx|rocm|vram"`.
+If it says CPU: check `/dev/kfd` exists in the container and that no
+`ollama` **system** service grabbed the GPU first (`systemctl status ollama`
+must be masked — preconfig-llm.sh does it).
+
 ## Operating
 
 ```bash

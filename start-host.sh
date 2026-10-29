@@ -43,6 +43,13 @@ for HOME_DIR in /home/*; do
         continue
     fi
 
+    # LLM capsules are headless (no X display, no Sunshine) — start-stream.sh
+    # routes them to start-llm.sh instead.
+    if [ "$(capsule_read_user_type "$CONFIG_FILE")" = "llm" ]; then
+        echo "Skipping $USERNAME (llm capsule — headless, no display)"
+        continue
+    fi
+
     CAP_IDX+=("$INDEX")
     CAP_USER+=("$USERNAME")
 done

@@ -8,6 +8,8 @@
 #   capsulectl start  <user>|all
 #   capsulectl stop   <user>|all
 #   capsulectl restart <user>|all
+#   capsulectl use <games|llm>      exclusive GPU mode switch: stops every
+#                                   capsule of the other type, starts this one
 #
 # Controls the capsule@<user>.service systemd *user* unit via each user's
 # lingered systemd manager — no logins, no passwords, no shells.
@@ -71,19 +73,29 @@ b() { [ "$1" = "yes" ] && echo true || echo false; }
 capsule_info_json() {
     # One JSON object for capsule $1 (caller composes the array)
     capsule_info "$1"
-    printf '{"user":"%s","index":%s,"state":"%s","stream_port":%s,"ui_port":%s,"sunshine_listening":%s,"steam_running":%s,"xorg_up":%s,"home":"/home/%s"}' \
-        "$(json_escape "$I_USER")" "$I_INDEX" "$I_STATE" "$I_BASE" "$I_UI" \
+    printf '{"user":"%s","index":%s,"type":"%s","state":"%s","stream_port":%s,"ui_port":%s,"sunshine_listening":%s,"steam_running":%s,"xorg_up":%s,"home":"/home/%s"}' \
+        "$(json_escape "$I_USER")" "$I_INDEX" "$(json_escape "$I_TYPE")" "$I_STATE" "$I_BASE" "$I_UI" \
         "$(b "$I_LISTEN")" "$(b "$I_STEAM")" "$(b "$I_XORG")" "$(json_escape "$I_USER")"
 }
 
 capsule_info() {
-    # Populates globals: I_USER I_INDEX I_BASE I_UI I_STATE I_LISTEN I_STEAM I_XORG
+    # Populates globals: I_USER I_INDEX I_TYPE I_BASE I_UI I_STATE I_LISTEN I_STEAM I_XORG
     local user="$1"
     I_USER="$user"
     I_INDEX="$(capsule_read_user_index "/home/$user/capsule.config")" || I_INDEX=-1
+    I_TYPE="$(capsule_read_user_type "/home/$user/capsule.config")"
     I_BASE=$(( $(capsule_sunshine_base_port) + I_INDEX * $(capsule_sunshine_port_step) ))
     I_UI=$(( I_BASE + 1 ))
     I_STATE="$(unit_state "$user")"
+    if [ "$I_TYPE" = "llm" ]; then
+        # Headless: no Sunshine/Steam/Xorg — "listening" means the LLM API.
+        I_LISTEN=no
+        capsule_tcp_listening "$(capsule_conf_get LLM_API_PORT 11434)" \
+            && pgrep -U "$(id -u "$user")" -x ollama >/dev/null 2>&1 && I_LISTEN=yes
+        I_STEAM=no
+        I_XORG=no
+        return
+    fi
     I_LISTEN=no
     capsule_tcp_listening "$I_UI" && I_LISTEN=yes
     I_STEAM=no
@@ -107,12 +119,17 @@ do_list() {
         return
     fi
 
-    printf '%-12s %-6s %-9s %-10s %-6s %-6s %s\n' \
-        "CAPSULE" "INDEX" "STATE" "UI PORT" "XORG" "STEAM" "SUNSHINE UI"
+    printf '%-12s %-6s %-6s %-9s %-6s %-6s %s\n' \
+        "CAPSULE" "INDEX" "TYPE" "STATE" "XORG" "STEAM" "ENDPOINT"
     for u in $users; do
         capsule_info "$u"
-        printf '%-12s %-6s %-9s %-10s %-6s %-6s %s\n' \
-            "$I_USER" "$I_INDEX" "$I_STATE" "$I_UI" "$I_XORG" "$I_STEAM" "https://<host>:$I_UI"
+        if [ "$I_TYPE" = "llm" ]; then
+            endpoint="http://<host>:$(capsule_conf_get LLM_WEB_PORT 8080) (UI) :$(capsule_conf_get LLM_API_PORT 11434)/v1 (API)"
+        else
+            endpoint="https://<host>:$I_UI (Sunshine)"
+        fi
+        printf '%-12s %-6s %-6s %-9s %-6s %-6s %s\n' \
+            "$I_USER" "$I_INDEX" "$I_TYPE" "$I_STATE" "$I_XORG" "$I_STEAM" "$endpoint"
     done
 }
 
@@ -141,8 +158,59 @@ do_action() {
 }
 
 usage() {
-    sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
     exit 1
+}
+
+users_of_type() {
+    # Usage: users_of_type <game|llm> — one user per line
+    local want="$1" u
+    for u in $(capsule_users); do
+        [ "$(capsule_read_user_type "/home/$u/capsule.config")" = "$want" ] && echo "$u"
+    done
+    return 0   # a no-match sweep is not an error
+}
+
+do_use() {
+    # Exclusive-GPU mode switch. The game capsule(s) stream with the GPU;
+    # the llm capsule keeps a multi-GB model resident in VRAM. Running both
+    # means VRAM contention and tanked FPS, so switching = stop the other
+    # type completely, then start this one. Xorgs stay up (capsule-host
+    # owns them; a dummy framebuffer costs no VRAM and the GPU-backed X
+    # keeps DRM master, which ROCm does not care about).
+    local mode="$1" stop_users start_users u
+    case "$mode" in
+        games) stop_users="$(users_of_type llm)";  start_users="$(users_of_type game)" ;;
+        llm)   stop_users="$(users_of_type game)"; start_users="$(users_of_type llm)" ;;
+        *)     error "usage: capsulectl use <games|llm>" ;;
+    esac
+
+    if [ "$mode" = "llm" ] && [ -z "$start_users" ]; then
+        error "No llm-type capsule found. Convert one: preconfig-llm.sh <user>"
+    fi
+
+    for u in $stop_users; do
+        log "Stopping $u ($mode mode keeps exclusive GPU use)"
+        capsule_run_user "$u" systemctl --user stop "capsule@$u.service" 2>/dev/null \
+            || warn "stop $u failed (may already be stopped)"
+    done
+    # Give Ollama a moment to return VRAM before Steam warms up the GPU.
+    if [ -n "$stop_users" ] && [ "$mode" = "games" ]; then
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+            pgrep -x ollama >/dev/null 2>&1 || break
+            sleep 1
+        done
+    fi
+    for u in $start_users; do
+        log "Starting $u"
+        capsule_run_user "$u" systemctl --user start "capsule@$u.service" \
+            || { warn "start $u failed"; return 1; }
+    done
+
+    case "$mode" in
+        games) log "Games mode active — Moonlight as usual" ;;
+        llm)   log "LLM mode active — UI http://<host>:$(capsule_conf_get LLM_WEB_PORT 8080), API http://<host>:$(capsule_conf_get LLM_API_PORT 11434)/v1" ;;
+    esac
 }
 
 case "$ACTION" in
@@ -151,5 +219,6 @@ case "$ACTION" in
     start)  do_action start "${2:?usage: capsulectl start <user>|all}" ;;
     stop)   do_action stop "${2:?usage: capsulectl stop <user>|all}" ;;
     restart) do_action restart "${2:?usage: capsulectl restart <user>|all}" ;;
+    use)    do_use "${2:?usage: capsulectl use <games|llm>}" ;;
     *)      usage ;;
 esac

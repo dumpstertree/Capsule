@@ -27,6 +27,11 @@ if ! INDEX="$(capsule_read_user_index "$USER_HOME/capsule.config")"; then
 Run as root: echo <index> > $USER_HOME/capsule.config && chown $USERNAME $USER_HOME/capsule.config"
 fi
 
+# --- LLM capsules: headless stack, no X / Sunshine / Steam at all --------------
+if [ "$(capsule_read_user_type "$USER_HOME/capsule.config")" = "llm" ]; then
+    exec "$SCRIPT_DIR/start-llm.sh"
+fi
+
 # --- Session environment -------------------------------------------------------
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export DISPLAY=":$INDEX"
