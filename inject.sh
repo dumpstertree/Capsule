@@ -6,4 +6,9 @@ if [ -z "${DISPLAY:-}" ]; then
     exit 1
 fi
 
-steam -bigpicture -fulldesktopres >/dev/null 2>&1 &
+# Steam's own output is the ONLY place start failures are explained
+# (the "could not be started" dialog says nothing else). Keep a per-user
+# log; overwritten on each launch so it always matches the last attempt.
+STEAM_LOG="/tmp/steam-$(id -un).log"
+steam -bigpicture -fulldesktopres >"$STEAM_LOG" 2>&1 &
+echo "Steam starting on display $DISPLAY (log: $STEAM_LOG)" >&2
