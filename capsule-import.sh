@@ -73,6 +73,12 @@ fi
     "$VENV_DIR/bin/pip" install -q --upgrade pip vdf requests
 
 CAPSULE_PERSISTENT_DATA_PATH="$(capsule_conf_get PERSISTENT_DATA_PATH "")"
+# A literal ~ in the config means the CAPSULE USER's home, but this wrapper
+# runs as root (or the scan would be permission-denied) — expand explicitly
+# so scans from the dashboard and from capsule startup agree on one path.
+case "$CAPSULE_PERSISTENT_DATA_PATH" in
+    "~"*) CAPSULE_PERSISTENT_DATA_PATH="$USER_HOME${CAPSULE_PERSISTENT_DATA_PATH:1}" ;;
+esac
 CAPSULE_SGDB_KEY="$(capsule_conf_get STEAMGRIDDB_API_KEY "")"
 export CAPSULE_PERSISTENT_DATA_PATH CAPSULE_SGDB_KEY
 

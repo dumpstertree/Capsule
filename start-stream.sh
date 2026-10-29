@@ -70,7 +70,9 @@ GAMES_PATH="$(capsule_conf_get GAMES_PATH "")"
 IMPORT_PY="/opt/capsule-steam-venv/bin/python"
 if [ -n "$GAMES_PATH" ] && [ -d "$GAMES_PATH" ] && [ -x "$IMPORT_PY" ]; then
     IMPORT_LOG="/tmp/capsule-import-$USERNAME.log"
-    CAPSULE_PERSISTENT_DATA_PATH="$(capsule_conf_get PERSISTENT_DATA_PATH "")" \
+    PDP="$(capsule_conf_get PERSISTENT_DATA_PATH "")"
+    case "$PDP" in "~"*) PDP="$USER_HOME${PDP:1}" ;; esac   # ~ = capsule user, not root
+    CAPSULE_PERSISTENT_DATA_PATH="$PDP" \
     CAPSULE_SGDB_KEY="$(capsule_conf_get STEAMGRIDDB_API_KEY "")" \
         "$IMPORT_PY" "$SCRIPT_DIR/capsule-import.py" import-dir "$USERNAME" "$GAMES_PATH" \
         >"$IMPORT_LOG" 2>&1 \
