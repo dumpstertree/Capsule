@@ -105,6 +105,33 @@ Consequences to plan around:
   `VertRefresh` ranges, or the default 65 MHz pixel-clock cap prunes the
   1080p modeline.
 
+## Input isolation (per-capsule keyboard/mouse)
+
+Sunshine injects input through `/dev/uinput`, which is **global to the
+kernel** — out of the box every capsule's Xorg hot-plugs every capsule's
+virtual keyboard/mouse and one Moonlight client moves all cursors at once.
+
+How Capsule separates them (Sunshine >= 2026.05 required — check
+`sunshine --version`):
+
+1. `start-stream.sh` exports `XDG_SEAT=seat<index+1>`; Sunshine appends
+   `(seatN)` to every virtual device name (`Mouse passthrough (seat2)`).
+   `index+1` because Sunshine deliberately does not tag seat0.
+2. `start-host.sh` generates a per-display Xorg config at
+   `/run/capsule/xorg.<index>.conf` = the normal config plus an InputClass
+   `Option "Ignore" "true"` for every FOREIGN `(seatN)` tag. X evaluates
+   these at hot-plug time, so devices Sunshine creates mid-session are
+   filtered too.
+3. Verify live: `DISPLAY=:0 xinput list` must show only
+   `... (seat1)` passthrough devices (plus XTEST). Anything else = too-old
+   Sunshine or Xorg not restarted since the update.
+
+**Gamepad caveat:** virtual gamepads are read straight from evdev by
+Steam/SDL, bypassing X — Steam sees every capsule's pads (identifiable by
+their `(seatN)` suffix in `ls /sys/class/input/*/device/name`). With
+controllers, disable foreign pads in Steam → Settings → Controller, or keep
+to one pad-connected capsule at a time.
+
 ## Operating
 
 ```bash

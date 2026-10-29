@@ -24,10 +24,9 @@ fi
 
 echo "Searching for capsule users..."
 
-started=0
-skipped=0
-failed=0
-
+# Pass 1 — collect every (index, user) pair up front: each capsule's Xorg
+# config must ignore the input devices of ALL other capsules (pass 2).
+declare -a CAP_IDX=() CAP_USER=()
 for HOME_DIR in /home/*; do
     [ -d "$HOME_DIR" ] || continue
 
@@ -44,6 +43,19 @@ for HOME_DIR in /home/*; do
         continue
     fi
 
+    CAP_IDX+=("$INDEX")
+    CAP_USER+=("$USERNAME")
+done
+
+started=0
+skipped=0
+failed=0
+RUNTIME_CONFIG_DIR=/run/capsule
+capsule_ensure_dir "$RUNTIME_CONFIG_DIR" root 0755
+
+for i in "${!CAP_IDX[@]}"; do
+    INDEX="${CAP_IDX[$i]}"
+    USERNAME="${CAP_USER[$i]}"
     DISPLAY_NUM=":$INDEX"
 
     if capsule_display_up "$INDEX"; then
@@ -59,6 +71,31 @@ for HOME_DIR in /home/*; do
         DISPLAY_XORG_CONFIG="$XORG_CONFIG"
     fi
 
+    # Input isolation: Sunshine's uinput devices are kernel-global, but each
+    # one carries "(seatN)" in its name (N = index+1, exported as XDG_SEAT by
+    # start-stream.sh). Generate a per-server config that ignores every
+    # FOREIGN capsule's seat, so this display only ever hot-plugs its own
+    # capsule's keyboard/mouse. MatchProduct is a substring match, so the
+    # rules also cover devices created later, while Xorg runs.
+    RUNTIME_XORG_CONFIG="$RUNTIME_CONFIG_DIR/xorg.$INDEX.conf"
+    if cp "$DISPLAY_XORG_CONFIG" "$RUNTIME_XORG_CONFIG"; then
+        for j in "${!CAP_IDX[@]}"; do
+            [ "$i" = "$j" ] && continue
+            FOREIGN_SEAT=$(( CAP_IDX[j] + 1 ))
+            cat >> "$RUNTIME_XORG_CONFIG" <<EOF
+
+Section "InputClass"
+    Identifier  "ignore-foreign-seat-$FOREIGN_SEAT"
+    MatchProduct "(seat$FOREIGN_SEAT)"
+    Option      "Ignore" "true"
+EndSection
+EOF
+        done
+    else
+        warn "Could not write $RUNTIME_XORG_CONFIG — falling back to $DISPLAY_XORG_CONFIG (input isolation OFF)"
+        RUNTIME_XORG_CONFIG="$DISPLAY_XORG_CONFIG"
+    fi
+
     # A stale lock from a crashed Xorg blocks startup; clean it only when no
     # Xorg process actually holds it.
     if [ -f "/tmp/.X$INDEX-lock" ]; then
@@ -69,7 +106,7 @@ for HOME_DIR in /home/*; do
         fi
     fi
 
-    echo "Starting Xorg for $USERNAME on display $DISPLAY_NUM (config: $DISPLAY_XORG_CONFIG)"
+    echo "Starting Xorg for $USERNAME on display $DISPLAY_NUM (config: $RUNTIME_XORG_CONFIG)"
 
     # Each Xorg needs a virtual terminal, but claiming VT OWNERSHIP
     # (VT_SETMODE) makes the kernel SIGTERM the previous owner — fatal for
@@ -92,7 +129,7 @@ for HOME_DIR in /home/*; do
 
     # shellcheck disable=SC2024  # log path is per-user, validated index
     Xorg "$DISPLAY_NUM" \
-        -config "$DISPLAY_XORG_CONFIG" \
+        -config "$RUNTIME_XORG_CONFIG" \
         -noreset \
         -novtswitch \
         -sharevts \

@@ -31,6 +31,16 @@ fi
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export DISPLAY=":$INDEX"
 
+# Input isolation. Sunshine creates its virtual keyboard/mouse through
+# /dev/uinput, which is GLOBAL to the kernel — without filtering, every
+# capsule's Xorg hot-plugs every capsule's devices and one Moonlight client
+# moves all cursors at once. Sunshine (>= 2026.05) appends "(seatN)" to its
+# virtual device names when XDG_SEAT is set and not seat0; start-host.sh
+# feeds those tags to per-server Xorg InputClass "Ignore" rules so each
+# display only accepts its own capsule's devices. INDEX+1 because Sunshine
+# deliberately leaves seat0 devices untagged.
+export XDG_SEAT="seat$((INDEX + 1))"
+
 # A dbus session is required by pipewire/steam. Under the systemd user service
 # it is provided by dbus-user-session; for manual runs create one and re-exec.
 if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
