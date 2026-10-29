@@ -70,17 +70,20 @@ card because DRM/KMS master is exclusive per card (`device is not DRM master`
 in `/var/log/Xorg.N.log`). Instead every capsule runs a **dummy** X display
 (RAM framebuffer) and the GPU is shared the way the kernel allows: through its
 **render node**, which has no master and unlimited concurrent clients.
-Games render on the GPU (Vulkan/Proton via GBM/render nodes), Sunshine
-captures the dummy surface (`capture = x11`).
+Sunshine captures the dummy surface (`capture = x11`).
 
 Consequences to plan around:
 
-* **Vulkan is hardware** (Proton, DXVK, and native VK titles — the common
-  case). **GLX/OpenGL falls back to llvmpipe** on dummy displays: fine for
-  Steam's UI, slow for heavy native-GL games. To give one capsule hardware
-  GLX too, set `CAPSULE_GPU_DISPLAYS=0` (plus `CAPSULE_KMSDEV` if the card
-  node differs) — that display gets a GPU-backed X server with DRM master.
-  Only ONE display per card can do this; the others must stay dummy.
+* **Dummy displays are software-rendered, full stop.** No GLX (llvmpipe),
+  and — verified with gamescope 3.17 — **no Vulkan presentation either**:
+  X11 Vulkan WSI requires DRI3, the dummy driver has none, and DRI3 can
+  never exist without DRM master (held by the GPU-backed capsule). Proton/
+  DXVK games on a dummy display silently fall back to software GL. See
+  "Software rendering on dummy displays" below. Give the capsules that
+  matter **GPU-backed displays** instead: set `CAPSULE_GPU_DISPLAYS=0`
+  (plus `CAPSULE_KMSDEV` if the card node differs) — that display gets a
+  GPU-backed X server with DRM master. Only ONE display per card can do
+  this; the others must stay dummy (or get their own GPU).
 * All capsules share the GPU's compute/VRAM — two heavy AAA titles at once
   contend, as expected.
 * **Render node mapping matters:** pass the render node of the GPU you actually
@@ -132,34 +135,41 @@ their `(seatN)` suffix in `ls /sys/class/input/*/device/name`). With
 controllers, disable foreign pads in Steam → Settings → Controller, or keep
 to one pad-connected capsule at a time.
 
-## Software rendering on dummy displays (gamescope mode)
+## Software rendering on dummy displays (gamescope mode — EXPERIMENTAL, does not work on dummy)
 
 A dummy X server has no GLX — Steam's UI renders via llvmpipe (CPU, tens of
 % per capsule). `AutoAddGPU` does NOT help: X can only offload to a GPU
-attached to a real base screen, never to a dummy one. The fix is
-**gamescope**, which runs its own compositor with an EGL context directly on
-the DRM render node (hardware RX 6800) — Steam gets hardware GL inside it,
-and the dummy X server only receives one full-screen blit per frame.
+attached to a real base screen, never to a dummy one.
 
-Enable per capsule:
+**Tested result (gamescope 3.17, dummy parent): it cannot work.** Gamescope's
+compositor is Vulkan-based and needs DRI3 to present onto its parent X
+window. The dummy driver has no DRI3, and can never have one: DRI3 requires
+a KMS driver, KMS requires DRM master, and master is already held by the
+GPU-backed capsule's X server. Log proof:
 
-```bash
-mkdir -p /home/capsule1/.config/capsule
-touch /home/capsule1/.config/capsule/gamescope
-capsulectl restart capsule1
+```
+MESA: info: vulkan: No DRI3 support detected - required for presentation
+vulkan: physical device 1002:73bf queue doesn't support presenting on our surface
+Failed to create backend.
 ```
 
-- Only capsules on **dummy** displays need it; a capsule whose X server is
-  GPU-backed (`CAPSULE_GPU_DISPLAYS`) already renders in hardware — don't
-  wrap it (pure nesting overhead).
+The same wall applies to **every Vulkan swapchain on a dummy display,
+including Proton/DXVK games**: on dummy capsules games silently fall back to
+software GL. There is no config fix for this on one non-SR-IOV GPU — the
+only real fixes are a **second GPU** (its own DRM master) or accepting the
+dummy capsule as a software-rendered light capsule.
+
+The marker mechanism is still in `inject.sh` (launches Steam inside
+gamescope when `~/.config/capsule/gamescope` exists, falling back to plain
+Steam if gamescope exits non-zero), because it is useful in one scenario:
+a **GPU-backed** display wrapped for gamescope features. On dummy displays
+the marker only adds a failed startup attempt before the fallback runs —
+leave it off.
+
 - Extra gamescope flags go in `/etc/capsule/config`:
-  `CAPSULE_GAMESCOPE_OPTS=--force-grab-cursor` (cursor tuning: if the mouse
-  doesn't land where Moonlight points it, or a double cursor appears,
-  `--force-grab-cursor` / `--hide-cursor` are the usual fixes).
+  `CAPSULE_GAMESCOPE_OPTS=...`.
 - Both launch paths honour the marker (capsule startup AND the Steam
   relaunch after a live import) — everything goes through `inject.sh`.
-- Costs: +1 frame of latency, one small software blit/frame, one extra
-  package. Revert = `rm` the marker + restart.
 
 ## Operating
 
