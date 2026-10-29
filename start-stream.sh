@@ -62,6 +62,21 @@ if ! sh "$SCRIPT_DIR/data-sync.sh"; then
     warn "Data sync failed — starting stream anyway (saves may be out of date)"
 fi
 
+# --- Auto-import games (best effort, before Steam starts) -----------------------
+# Scans GAMES_PATH: every subfolder with an .exe becomes a Steam shortcut with
+# SteamGridDB art. Known games are skipped without any network calls, so this
+# is ~free on repeat starts. Steam isn't running yet, so no stop/start needed.
+GAMES_PATH="$(capsule_conf_get GAMES_PATH "")"
+IMPORT_PY="/opt/capsule-steam-venv/bin/python"
+if [ -n "$GAMES_PATH" ] && [ -d "$GAMES_PATH" ] && [ -x "$IMPORT_PY" ]; then
+    IMPORT_LOG="/tmp/capsule-import-$USERNAME.log"
+    CAPSULE_PERSISTENT_DATA_PATH="$(capsule_conf_get PERSISTENT_DATA_PATH "")" \
+    CAPSULE_SGDB_KEY="$(capsule_conf_get STEAMGRIDDB_API_KEY "")" \
+        "$IMPORT_PY" "$SCRIPT_DIR/capsule-import.py" import-dir "$USERNAME" "$GAMES_PATH" \
+        >"$IMPORT_LOG" 2>&1 \
+        || warn "Game auto-import had problems — see $IMPORT_LOG"
+fi
+
 # --- Window manager -------------------------------------------------------------
 if ! pgrep -U "$(id -u)" -x openbox >/dev/null 2>&1; then
     echo "Opening Box"

@@ -144,7 +144,6 @@ let managerUser = null;
 let browseFor = null;   // input element the picker fills
 let browseExes = false; // also list .exe files (game picker mode)
 let browsePath = "/";
-let meta = null;
 
 const mgr = (id) => document.getElementById(id);
 
@@ -288,25 +287,32 @@ function showBrowser(inputEl, withExes) {
 
 /* ---------- manager open/close ---------- */
 
+let settings = null;
+
+async function loadSettings() {
+  try {
+    const resp = await api("/api/settings");
+    if (resp.ok) settings = await resp.json();
+  } catch (e) { /* ignore */ }
+  if (settings) {
+    const input = mgr("games-path");
+    if (document.activeElement !== input) input.value = settings.games_path || "";
+    const hints = [];
+    if (settings.importer === false) hints.push("capsule-import.sh not found on the server (set capsule_dir in its config.yaml).");
+    if (settings.sgdb_key === false) hints.push("No STEAMGRIDDB_API_KEY configured — shortcuts are still created, but without artwork or real names.");
+    mgr("mgr-hints").textContent = hints.join(" ");
+  }
+}
+
 async function openManager(user) {
   managerUser = user;
-  mgr("mgr-title").textContent = `${user} — libraries & games`;
+  mgr("mgr-title").textContent = `${user} — games`;
   mgr("mgr-notice").style.display = "none";
   mgr("modal").style.display = "flex";
   closeBrowser();
   loadLibraries();
   loadGames();
-
-  if (meta === null) {
-    try {
-      const resp = await api("/api/meta");
-      meta = resp.ok ? await resp.json() : {};
-    } catch (e) { meta = {}; }
-  }
-  const hints = [];
-  if (meta && meta.importer === false) hints.push("capsule-import.sh not found on the server (set capsule_dir in its config.yaml).");
-  if (meta && meta.sgdb_key === false) hints.push("No STEAMGRIDDB_API_KEY configured — imports work but without artwork/name matching.");
-  mgr("mgr-hints").textContent = hints.join(" ");
+  loadSettings();
 }
 
 function initManager() {
@@ -314,6 +320,33 @@ function initManager() {
   mgr("modal").addEventListener("click", (ev) => {
     if (ev.target === mgr("modal")) mgr("modal").style.display = "none";
   });
+
+  mgr("path-save").addEventListener("click", async () => {
+    mgrNotice("");
+    try {
+      const resp = await api("/api/settings", {
+        method: "POST",
+        body: JSON.stringify({ games_path: mgr("games-path").value.trim() }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) { mgrNotice(data.detail || "could not save"); return; }
+      mgrNotice(data.games_path
+        ? `saved — capsules will auto-import from ${data.games_path} on start`
+        : "games folder cleared — auto-import disabled", false);
+      loadSettings();
+    } catch (e) { /* ignore */ }
+  });
+
+  mgr("scan-now").addEventListener("click", () => {
+    const path = mgr("games-path").value.trim();
+    if (!path) { mgrNotice("set the games folder first"); return; }
+    mgrNotice("scanning — new games are fetched from SteamGridDB, Steam will restart…", false);
+    mgrCall("POST", "/scan", { path, dry_run: false }, () => {
+      loadGames();
+      loadCapsules();
+    });
+  });
+  mgr("path-browse").addEventListener("click", () => showBrowser(mgr("games-path"), false));
 
   mgr("lib-add").addEventListener("click", () => {
     const path = mgr("lib-path").value.trim();
@@ -324,40 +357,6 @@ function initManager() {
     });
   });
   mgr("lib-browse").addEventListener("click", () => showBrowser(mgr("lib-path"), false));
-
-  mgr("game-add").addEventListener("click", () => {
-    const exe = mgr("game-exe").value.trim();
-    if (!exe) { mgrNotice("pick the game .exe first"); return; }
-    const body = {
-      exe,
-      name: mgr("game-name").value.trim(),
-      startdir: "",
-      sgdb_id: mgr("game-sgdb").value ? parseInt(mgr("game-sgdb").value, 10) : null,
-      launch_options: mgr("game-opts").value.trim(),
-      no_art: false,
-    };
-    mgrNotice("importing — Steam for this capsule will restart…", false);
-    mgrCall("POST", "/games", body, () => {
-      mgr("game-exe").value = "";
-      mgr("game-name").value = "";
-      mgr("game-sgdb").value = "";
-      mgr("game-opts").value = "";
-      loadGames();
-    });
-  });
-  mgr("game-browse").addEventListener("click", () => showBrowser(mgr("game-exe"), true));
-
-  const scan = (dryRun) => {
-    const path = mgr("game-dir").value.trim();
-    if (!path) { mgrNotice("pick the folder full of games first"); return; }
-    mgrNotice(dryRun ? "scanning…" : "importing everything — Steam will restart, artwork downloads take a while…", false);
-    mgrCall("POST", "/scan", { path, dry_run: dryRun }, () => {
-      if (!dryRun) { mgr("game-dir").value = ""; loadGames(); }
-    });
-  };
-  mgr("dir-scan").addEventListener("click", () => scan(false));
-  mgr("dir-preview").addEventListener("click", () => scan(true));
-  mgr("dir-browse").addEventListener("click", () => showBrowser(mgr("game-dir"), false));
 
   mgr("browser-up").addEventListener("click", () => {
     const up = browsePath.replace(/\/+$/, "").replace(/[^/]*$/, "");

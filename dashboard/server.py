@@ -207,7 +207,7 @@ def valid_capsule_name(name: str) -> bool:
 # capsule-import bridge (Steam library folders + non-Steam games)
 # ---------------------------------------------------------------------------
 
-CAPSULE_CONFIG_FILE = Path("/etc/capsule/config")
+CAPSULE_CONFIG_FILE = Path(os.environ.get("CAPSULE_DASHBOARD_CAPSULE_CONFIG", "/etc/capsule/config"))
 IMPORT_TIMEOUT = 300  # add-game: Steam stop + SGDB downloads + Steam relaunch
 
 
@@ -301,6 +301,10 @@ class ActionBody(BaseModel):
 
 class LibraryBody(BaseModel):
     path: str
+
+
+class SettingsBody(BaseModel):
+    games_path: str
 
 
 class GameBody(BaseModel):
@@ -596,16 +600,49 @@ def index(request: Request):
     return security_headers(HTMLResponse((STATIC_DIR / "index.html").read_text()))
 
 
-@app.get("/api/meta")
-def api_meta(request: Request):
-    """Feature flags for the UI (importer present? SteamGridDB key set?)."""
+@app.get("/api/settings")
+def api_settings_get(request: Request):
+    """Global games-folder + feature flags (shared by all capsules)."""
     if err := require_auth(request):
         return security_headers(err)
     script = Path(CONFIG.capsule_dir) / "capsule-import.sh"
     return security_headers(JSONResponse({
-        "importer": script.is_file(),
+        "games_path": capsule_conf_value("GAMES_PATH"),
         "sgdb_key": bool(capsule_conf_value("STEAMGRIDDB_API_KEY")),
+        "importer": script.is_file(),
     }))
+
+
+def set_capsule_conf(key: str, value: str) -> None:
+    """Update one KEY=value line in /etc/capsule/config, keeping the rest."""
+    lines = []
+    if CAPSULE_CONFIG_FILE.exists():
+        lines = [l for l in CAPSULE_CONFIG_FILE.read_text().splitlines()
+                 if not l.startswith(f"{key}=")]
+    lines.append(f"{key}={value}")
+    tmp = CAPSULE_CONFIG_FILE.with_suffix(".tmp")
+    tmp.write_text("\n".join(lines) + "\n")
+    try:
+        os.chmod(tmp, 0o640)
+    except OSError:
+        pass
+    os.replace(tmp, CAPSULE_CONFIG_FILE)
+
+
+@app.post("/api/settings")
+def api_settings_post(body: SettingsBody, request: Request):
+    if err := require_auth(request):
+        return security_headers(err)
+    if err := require_csrf(request):
+        return security_headers(err)
+    path = body.games_path.strip().rstrip("/")
+    if path and (not path.startswith("/") or not safe_text(path)):
+        return security_headers(JSONResponse(
+            {"detail": "games path must be absolute (e.g. /mnt/games) or empty to disable"},
+            status_code=400))
+    set_capsule_conf("GAMES_PATH", path)
+    log.info("games folder set to %r", path)
+    return security_headers(JSONResponse({"ok": True, "games_path": path}))
 
 
 @app.get("/healthz")

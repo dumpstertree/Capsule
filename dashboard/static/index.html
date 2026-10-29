@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Capsule</title>
-  <link rel="stylesheet" href="/static/style.css?v=3">
+  <link rel="stylesheet" href="/static/style.css?v=4">
 </head>
 <body>
   <div class="wrap">
@@ -21,7 +21,7 @@
     </div>
   </div>
 
-  <!-- games & libraries manager -->
+  <!-- games manager -->
   <div class="modal-overlay" id="modal" style="display:none">
     <div class="modal">
       <div class="modal-head">
@@ -32,38 +32,30 @@
       <div class="hint" id="mgr-hints"></div>
 
       <section>
-        <h3>Steam library folders</h3>
-        <ul class="mgr-list" id="mgr-libs"><li class="dim">Loading…</li></ul>
+        <h3>Games folder</h3>
         <div class="mgr-form">
-          <input id="lib-path" type="text" placeholder="/mnt/games" spellcheck="false">
-          <button id="lib-browse">Browse…</button>
-          <button id="lib-add" class="primary">Add drive</button>
+          <input id="games-path" type="text" placeholder="/mnt/games" spellcheck="false">
+          <button id="path-browse">Browse…</button>
+          <button id="path-save">Save</button>
+          <button id="scan-now" class="primary">Scan &amp; import now</button>
         </div>
-        <div class="hint">Drive must be mounted inside the container (Proxmox bind mount). Steam rescans on next start.</div>
+        <div class="hint">Every folder inside it containing an .exe becomes a Steam shortcut with SteamGridDB artwork — automatically on every capsule start. Steam restarts after a live scan.</div>
       </section>
 
       <section>
-        <h3>Non-Steam games</h3>
+        <h3>Imported games</h3>
         <ul class="mgr-list" id="mgr-games"><li class="dim">Loading…</li></ul>
+      </section>
+
+      <section>
+        <h3>Steam library folders</h3>
+        <ul class="mgr-list" id="mgr-libs"><li class="dim">Loading…</li></ul>
         <div class="mgr-form">
-          <input id="game-exe" type="text" placeholder="/mnt/games/GameName/game.exe" spellcheck="false">
-          <button id="game-browse">Browse…</button>
+          <input id="lib-path" type="text" placeholder="/mnt/steamgames" spellcheck="false">
+          <button id="lib-browse">Browse…</button>
+          <button id="lib-add" class="primary">Add drive</button>
         </div>
-        <div class="mgr-form">
-          <input id="game-name" type="text" placeholder="Display name (default: exe name)" spellcheck="false">
-          <input id="game-sgdb" type="number" placeholder="SteamGridDB id (optional, skips search)" min="1">
-        </div>
-        <div class="mgr-form">
-          <input id="game-opts" type="text" placeholder="Launch options (optional)" spellcheck="false">
-          <button id="game-add" class="primary">Import game</button>
-        </div>
-        <div class="mgr-form">
-          <input id="game-dir" type="text" placeholder="/mnt/games — import EVERY subfolder with an .exe" spellcheck="false">
-          <button id="dir-browse">Browse…</button>
-          <button id="dir-preview">Preview</button>
-          <button id="dir-scan" class="primary">Import all</button>
-        </div>
-        <div class="hint">Importing stops and restarts Steam for this capsule. Artwork and names come from SteamGridDB. Batch import is idempotent — re-running updates instead of duplicating.</div>
+        <div class="hint">Adds a drive to Steam itself (Steam scans it on next start). Drive must be mounted inside the container.</div>
       </section>
 
       <section class="browser" id="browser" style="display:none">
@@ -79,6 +71,6 @@
     </div>
   </div>
 
-  <script src="/static/app.js?v=3"></script>
+  <script src="/static/app.js?v=4"></script>
 </body>
 </html>

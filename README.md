@@ -121,36 +121,33 @@ environment instead of failing deep inside Steam.
 
 ## Game libraries & non-Steam games
 
-Same features are available as buttons/forms in the dashboard (per-capsule
-**Games** button); the CLI below is for scripting and runs the same engine.
+Set a **games folder** once (dashboard *Games* dialog, or `GAMES_PATH` in
+`/etc/capsule/config`). Every subfolder that contains an `.exe` becomes a
+Steam shortcut with full SteamGridDB metadata and artwork (capsule /
+portrait / hero / logo / icon) — **automatically at every capsule start**,
+before Steam launches. Already-imported games are skipped with zero network
+calls; drop a new folder onto the drive and it shows up next start. If Steam
+is already running, use the dialog's **Scan & import now** instead (restarts
+that capsule's Steam). Logs: `/tmp/capsule-import-<user>.log`.
+
+Same engine, exposed for scripting:
 
 ```bash
-# Add a drive as a Steam library (mount it into the container first —
-# Proxmox bind mount in /etc/pve/lxc/<ct>.conf):
-capsule-import.sh add-library capsule0 /mnt/games
+capsule-import.sh import-dir   capsule0 /mnt/games     # batch (idempotent; --dry-run previews)
+capsule-import.sh add-game     capsule0 /path/to/game.exe [--name N] [--sgdb-id ID]
+capsule-import.sh list-games   capsule0
+capsule-import.sh remove-game  capsule0 "Game Name"
+
+# add a drive to Steam itself (separate from the auto-import folder):
+capsule-import.sh add-library  capsule0 /mnt/steamgames
 capsule-import.sh list-libraries capsule0
-
-# Import a non-Steam game with full metadata + artwork (needs
-# STEAMGRIDDB_API_KEY for matching/art; --no-art or empty key = plain import):
-capsule-import.sh add-game capsule0 /mnt/games/Doom64/doom64.exe --name "Doom 64"
-capsule-import.sh add-game capsule0 /mnt/games/SomeGame/game.exe \
-    --sgdb-id 1234 --launch-options "-w 1920 -h 1080"
-
-# Batch: every subfolder containing an .exe becomes a shortcut (same
-# best-exe heuristic as generate-shortcuts.sh; idempotent — re-running
-# updates entries instead of duplicating; --dry-run previews)
-capsule-import.sh import-dir capsule0 /mnt/games
-capsule-import.sh list-games capsule0
-capsule-import.sh remove-game capsule0 "Doom 64"
 ```
 
-Write operations stop that user's Steam (it rewrites its own config on exit
+Write operations stop only that user's Steam (it rewrites its config on exit
 and would clobber the edits), write the entries, fix ownership, and relaunch
-Steam if the capsule was streaming. Games appear in Steam's Non-Steam list;
-SteamGridDB art (capsule/portrait/hero/logo/icon) lands in the locations
-Big Picture discovers, and game metadata is recorded under
+Steam if the capsule was streaming. Game metadata is recorded under
 `PERSISTENT_DATA_PATH/metadata/` — the same convention `generate-shortcuts.sh`
-uses, and both generators now preserve entries they don't own.
+uses, and both generators preserve entries they don't own.
 
 ## Dashboard
 
@@ -160,10 +157,9 @@ sh /Capsule/dashboard/install-dashboard.sh
 
 FastAPI on `https://<container>:8443`: capsule list, live status (Xorg /
 Sunshine / Steam), power on/off/restart, direct Sunshine UI links, and a
-**Games** button per capsule — add/remove Steam library drives (with a
-server-side folder browser) and import non-Steam games with SteamGridDB
-artwork — one at a time or **Import all** from a folder, full preview
-mode included. All from forms, no shell needed. Single admin account
+**Games** button per capsule — set the games folder once (auto-imported at
+every capsule start), scan on demand, remove games, add Steam library
+drives. All forms, no shell. Single admin account
 (scrypt-hashed), HMAC sessions, CSRF-protected POSTs, login rate
 limiting, self-signed cert (swap in your own `key.pem`/`cert.pem` under
 `/etc/capsule/dashboard/`). Put it behind your reverse proxy or port-forward —

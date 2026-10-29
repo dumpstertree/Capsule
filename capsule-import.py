@@ -294,9 +294,14 @@ def fetch_art(sgdb_id, unsigned_appid, cfg, grid_dir):
     discovery paths). Cached under PERSISTENT_DATA_PATH/assets when set."""
     cache = (PERSISTENT_DATA_PATH / "assets" / str(unsigned_appid)) \
         if PERSISTENT_DATA_PATH else cfg / "capsule-assets" / str(unsigned_appid)
-    cache.mkdir(parents=True, exist_ok=True)
-    if PERSISTENT_DATA_PATH:
-        chown_later(PERSISTENT_DATA_PATH / "assets")
+    try:
+        cache.mkdir(parents=True, exist_ok=True)
+        if PERSISTENT_DATA_PATH:
+            chown_later(PERSISTENT_DATA_PATH / "assets")
+    except OSError:
+        # e.g. running as the capsule user against a root-owned share
+        cache = cfg / "capsule-assets" / str(unsigned_appid)
+        cache.mkdir(parents=True, exist_ok=True)
 
     targets = [
         ("capsule.png", f"https://www.steamgriddb.com/api/v2/grids/game/{sgdb_id}?dimensions=460x215"),
@@ -333,11 +338,24 @@ def fetch_art(sgdb_id, unsigned_appid, cfg, grid_dir):
 def save_metadata(name, data):
     if not PERSISTENT_DATA_PATH:
         return
-    meta_dir = PERSISTENT_DATA_PATH / "metadata"
-    meta_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = name.replace("/", "_")
-    (meta_dir / f"{safe_name}.json").write_text(json.dumps(data, indent=4))
-    chown_later(meta_dir)
+    try:
+        meta_dir = PERSISTENT_DATA_PATH / "metadata"
+        meta_dir.mkdir(parents=True, exist_ok=True)
+        safe_name = name.replace("/", "_")
+        (meta_dir / f"{safe_name}.json").write_text(json.dumps(data, indent=4))
+        chown_later(meta_dir)
+    except OSError as exc:  # e.g. root-owned dir when run as the capsule user
+        print(f"  note: metadata not saved ({exc})")
+
+
+def load_metadata(name):
+    if not PERSISTENT_DATA_PATH:
+        return None
+    path = PERSISTENT_DATA_PATH / "metadata" / f"{name.replace('/', '_')}.json"
+    try:
+        return json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 ###############################################################################
@@ -423,7 +441,7 @@ def import_one(exe, name, startdir, sgdb_id, launch_options,
     else:
         entries.append(entry)
 
-    save_metadata(official, {
+    meta_doc = {
         "folder_name": official,
         "shortcut_appid": entry["appid"],
         "steam_appid": steam_appid,
@@ -432,7 +450,11 @@ def import_one(exe, name, startdir, sgdb_id, launch_options,
         "exe": str(exe),
         "startdir": startdir,
         "source": "capsule-import",
-    })
+    }
+    save_metadata(official, meta_doc)
+    if official.lower() != name.lower():
+        # also under the scan folder name so startup skip-checks find it
+        save_metadata(name, dict(meta_doc, folder_name=name))
     return status, f"{official} (appid {unsigned})"
 
 
@@ -481,6 +503,15 @@ def cmd_import_dir(user, args):
     counts = {}
     for game_dir in game_dirs:
         exe = find_best_exe(game_dir)
+
+        # fast startup path: folder already imported (metadata agrees on the
+        # exe, shortcut present) -> skip entirely, zero SteamGridDB traffic
+        meta = load_metadata(game_dir.name)
+        if (not args.dry_run and meta and meta.get("exe") == str(exe.resolve())
+                and any(e.get("appid") == meta.get("shortcut_appid") for e in entries)):
+            counts["known"] = counts.get("known", 0) + 1
+            continue
+
         status, line = import_one(exe, game_dir.name, None, None, "",
                                   entries, cfg, grid_dir, dry=args.dry_run)
         print(f"  [{status}] {game_dir.name}: {line}")
@@ -492,8 +523,11 @@ def cmd_import_dir(user, args):
 
     save_shortcuts(shortcuts_file, entries)
     chown_later(cfg)
-    print("done: " + ", ".join(f"{k} {v}" for k, v in sorted(counts.items())))
-    print("visible in Steam's Non-Steam list after Steam (re)starts")
+    summary = ", ".join(f"{k} {v}" for k, v in sorted(counts.items()))
+    if counts.get("known") and len(counts) == 1:
+        print(f"up to date ({counts['known']} game(s))")
+    else:
+        print(f"done: {summary}")
 
 
 def cmd_remove_game(user, args):
