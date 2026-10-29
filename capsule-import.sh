@@ -59,13 +59,14 @@ if [[ "$WRITE_OPS" == *" $SUBCMD "* ]]; then
     sleep 2
 fi
 
-VENV_DIR="/opt/capsule-steam-venv"
+VENV_DIR="${CAPSULE_IMPORT_VENV:-/opt/capsule-steam-venv}"
 if [ ! -x "$VENV_DIR/bin/python" ]; then
     log "Creating python virtual environment ($VENV_DIR)"
     pacman -Sy --noconfirm --needed python python-virtualenv >/dev/null
     python -m venv "$VENV_DIR"
 fi
-"$VENV_DIR/bin/pip" install -q --upgrade pip vdf requests
+"$VENV_DIR/bin/python" -c "import vdf, requests" 2>/dev/null || \
+    "$VENV_DIR/bin/pip" install -q --upgrade pip vdf requests
 
 CAPSULE_PERSISTENT_DATA_PATH="$(capsule_conf_get PERSISTENT_DATA_PATH "")"
 CAPSULE_SGDB_KEY="$(capsule_conf_get STEAMGRIDDB_API_KEY "")"

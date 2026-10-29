@@ -36,6 +36,7 @@ HOME_ROOT = Path(os.environ.get("CAPSULE_HOME_ROOT", "/home"))
 PERSISTENT_DATA_PATH = Path(os.environ["CAPSULE_PERSISTENT_DATA_PATH"]) \
     if os.environ.get("CAPSULE_PERSISTENT_DATA_PATH") else None
 SGDB_KEY = os.environ.get("CAPSULE_SGDB_KEY", "").strip()
+JSON_OUT = bool(os.environ.get("CAPSULE_IMPORT_JSON"))  # list-* emit machine JSON
 
 # everything we create lives under the capsule user's home — collect paths and
 # chown them back (the wrapper runs this script as root)
@@ -185,11 +186,19 @@ def cmd_remove_library(user, args):
 def cmd_list_libraries(user, args):
     lf = libraryfolders_path(steam_root(user))
     folders = load_libraryfolders(lf)["libraryfolders"]
-    if not folders:
+    items = [
+        {"index": int(k) if str(k).isdigit() else k, "path": str(v.get("path", ""))}
+        for k, v in sorted(folders.items(),
+                           key=lambda kv: int(kv[0]) if str(kv[0]).isdigit() else 999)
+    ]
+    if JSON_OUT:
+        print(json.dumps({"libraries": items}))
+        return
+    if not items:
         print("(no library folders yet — Steam creates the default on first run)")
         return
-    for key, entry in sorted(folders.items(), key=lambda kv: int(kv[0]) if kv[0].isdigit() else 999):
-        print(f"  [{key}] {entry.get('path', '')}")
+    for item in items:
+        print(f"  [{item['index']}] {item['path']}")
 
 
 ###############################################################################
@@ -433,12 +442,23 @@ def cmd_remove_game(user, args):
 
 def cmd_list_games(user, args):
     entries = load_shortcuts(config_dir(steam_root(user)) / "shortcuts.vdf")
-    if not entries:
+    items = [
+        {
+            "appid": e.get("appid", 0) & 0xFFFFFFFF,
+            "appname": e.get("appname", "?"),
+            "exe": str(e.get("exe", "")).strip('"'),
+            "launch_options": e.get("LaunchOptions", ""),
+        }
+        for e in entries.values()
+    ]
+    if JSON_OUT:
+        print(json.dumps({"games": items}))
+        return
+    if not items:
         print("(no non-Steam shortcuts)")
         return
-    for e in entries.values():
-        appid = e.get("appid", 0)
-        print(f"  {appid & 0xFFFFFFFF:>10}  {e.get('appname', '?')}")
+    for item in items:
+        print(f"  {item['appid']:>10}  {item['appname']}")
 
 
 ###############################################################################

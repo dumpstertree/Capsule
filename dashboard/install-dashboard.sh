@@ -39,6 +39,13 @@ if [ ! -x "$INSTALL_DIR/venv/bin/python" ]; then
 fi
 "$INSTALL_DIR/venv/bin/pip" install -q --upgrade -r "$INSTALL_DIR/requirements.txt"
 
+log "Import engine venv (Games & libraries UI)"
+IMPORT_VENV_DIR=/opt/capsule-steam-venv
+if [ ! -x "$IMPORT_VENV_DIR/bin/python" ]; then
+    python -m venv "$IMPORT_VENV_DIR"
+fi
+"$IMPORT_VENV_DIR/bin/pip" install -q --upgrade pip vdf requests
+
 log "Secrets + config in $DASH_DIR"
 capsule_ensure_dir "$DASH_DIR" root 0700
 
@@ -52,6 +59,9 @@ admin_user: admin
 # Empty = whatever host the browser is talking to.
 capsule_host: ""
 session_hours: 12
+# Repo checkout holding capsule-import.sh (games & libraries management).
+capsule_dir: /Capsule
+import_venv: /opt/capsule-steam-venv
 EOF
     chmod 0600 "$DASH_DIR/config.yaml"
     log "wrote $DASH_DIR/config.yaml (edit to taste)"

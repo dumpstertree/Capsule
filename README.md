@@ -121,6 +121,9 @@ environment instead of failing deep inside Steam.
 
 ## Game libraries & non-Steam games
 
+Same features are available as buttons/forms in the dashboard (per-capsule
+**Games** button); the CLI below is for scripting and runs the same engine.
+
 ```bash
 # Add a drive as a Steam library (mount it into the container first —
 # Proxmox bind mount in /etc/pve/lxc/<ct>.conf):
@@ -151,11 +154,18 @@ sh /Capsule/dashboard/install-dashboard.sh
 ```
 
 FastAPI on `https://<container>:8443`: capsule list, live status (Xorg /
-Sunshine / Steam), power on/off/restart, direct Sunshine UI links. Single admin
-account (scrypt-hashed), HMAC sessions, CSRF-protected POSTs, login rate
+Sunshine / Steam), power on/off/restart, direct Sunshine UI links, and a
+**Games** button per capsule — add/remove Steam library drives (with a
+server-side folder browser) and import non-Steam games with SteamGridDB
+artwork, all from forms, no shell needed. Single admin account
+(scrypt-hashed), HMAC sessions, CSRF-protected POSTs, login rate
 limiting, self-signed cert (swap in your own `key.pem`/`cert.pem` under
 `/etc/capsule/dashboard/`). Put it behind your reverse proxy or port-forward —
 use a long password.
+
+`config.yaml` keys `capsule_dir` (repo holding `capsule-import.sh`) and
+`import_venv` point the dashboard at the import engine; the installer
+creates the venv so the web actions never touch the package manager.
 
 ## Security notes
 

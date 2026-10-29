@@ -84,11 +84,16 @@ function renderCapsules(capsules) {
         <button class="start" data-act="start" ${c.state === "active" ? "disabled" : ""}>On</button>
         <button class="stop" data-act="stop" ${c.state !== "active" ? "disabled" : ""}>Off</button>
         <button data-act="restart" ${c.state !== "active" ? "disabled" : ""}>Restart</button>
+        <button data-act="manage">Games</button>
         <a href="${sunUrl}" target="_blank" rel="noopener">Sunshine UI ↗</a>
       </div>`;
 
     card.querySelectorAll("button[data-act]").forEach((btn) => {
       btn.addEventListener("click", async () => {
+        if (btn.dataset.act === "manage") {
+          openManager(c.user);
+          return;
+        }
         card.querySelectorAll("button").forEach((b) => (b.disabled = true));
         try {
           await api(`/api/capsules/${c.user}/${btn.dataset.act}`, {
@@ -129,6 +134,230 @@ async function loadCapsules() {
   }
 }
 
+/* ---------- games & libraries manager ---------- */
+
+const esc = (s) => String(s).replace(/[&<>"']/g, (ch) => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+}[ch]));
+
+let managerUser = null;
+let browseFor = null;   // input element the picker fills
+let browseExes = false; // also list .exe files (game picker mode)
+let browsePath = "/";
+let meta = null;
+
+const mgr = (id) => document.getElementById(id);
+
+function mgrNotice(text, isError = true) {
+  const n = mgr("mgr-notice");
+  if (!text) { n.style.display = "none"; return; }
+  n.textContent = text;
+  n.style.display = "block";
+  n.classList.toggle("ok", !isError);
+  n.style.background = isError ? "rgba(248,81,73,.08)" : "rgba(63,185,80,.08)";
+  n.style.borderColor = isError ? "rgba(248,81,73,.35)" : "rgba(63,185,80,.35)";
+  n.style.color = isError ? "var(--red)" : "var(--green)";
+}
+
+function renderLibs(libraries) {
+  const ul = mgr("mgr-libs");
+  if (!libraries.length) {
+    ul.innerHTML = '<li class="dim">Only Steam\'s default library so far.</li>';
+    return;
+  }
+  ul.innerHTML = libraries.map((l) => `
+    <li>
+      <span class="item-path" title="${esc(l.path)}">${esc(l.path)}</span>
+      <button class="danger" data-remove-lib="${esc(l.path)}" title="Remove">✕</button>
+    </li>`).join("");
+  ul.querySelectorAll("[data-remove-lib]").forEach((btn) => {
+    btn.addEventListener("click", () => mgrCall(
+      "DELETE", "/libraries", { path: btn.dataset.removeLib }, loadLibraries));
+  });
+}
+
+function renderGames(games) {
+  const ul = mgr("mgr-games");
+  if (!games.length) {
+    ul.innerHTML = '<li class="dim">No non-Steam games imported yet.</li>';
+    return;
+  }
+  ul.innerHTML = games.map((g) => `
+    <li>
+      <span><b>${esc(g.appname)}</b>
+        <span class="item-path" title="${esc(g.exe)}">${esc(g.exe)}</span></span>
+      <button class="danger" data-remove-game="${esc(g.appname)}" title="Remove">✕</button>
+    </li>`).join("");
+  ul.querySelectorAll("[data-remove-game]").forEach((btn) => {
+    btn.addEventListener("click", () => mgrCall(
+      "DELETE", "/games", { target: btn.dataset.removeGame }, loadGames));
+  });
+}
+
+async function loadLibraries() {
+  try {
+    const resp = await api(`/api/capsules/${managerUser}/libraries`);
+    const data = await resp.json();
+    if (!resp.ok) { mgrNotice(data.detail || "failed to load libraries"); return; }
+    renderLibs(data.libraries || []);
+  } catch (e) { /* unauthenticated handles redirect */ }
+}
+
+async function loadGames() {
+  try {
+    const resp = await api(`/api/capsules/${managerUser}/games`);
+    const data = await resp.json();
+    if (!resp.ok) { mgrNotice(data.detail || "failed to load games"); return; }
+    renderGames(data.games || []);
+  } catch (e) { /* ignore */ }
+}
+
+async function mgrCall(method, sub, body, onDone) {
+  mgrNotice("");
+  const btns = document.querySelectorAll(".modal button");
+  btns.forEach((b) => (b.disabled = true));
+  try {
+    const resp = await api(`/api/capsules/${managerUser}${sub}`, {
+      method,
+      body: JSON.stringify(body),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      mgrNotice(data.detail || `${method} ${sub} failed`);
+    } else {
+      mgrNotice(data.output || data.detail || "done", false);
+      if (onDone) onDone();
+    }
+  } catch (e) {
+    if (String(e.message) !== "unauthenticated") mgrNotice("network error");
+  } finally {
+    btns.forEach((b) => (b.disabled = false));
+  }
+}
+
+/* ---------- folder browser ---------- */
+
+async function openBrowser(path) {
+  browsePath = path;
+  try {
+    const resp = await api(`/api/browse?path=${encodeURIComponent(path)}`);
+    const data = await resp.json();
+    if (!resp.ok) { mgrNotice(data.detail || "cannot list folder"); return; }
+    browsePath = data.path;
+    mgr("browser-path").textContent = data.path;
+    mgr("browser-up").disabled = !data.parent;
+    const items = [];
+    if (data.parent) {
+      items.push(`<div class="browser-item up" data-cd="${esc(data.parent)}">..</div>`);
+    }
+    for (const d of data.dirs) {
+      items.push(`<div class="browser-item" data-cd="${esc(d.path)}">📁 ${esc(d.name)}</div>`);
+    }
+    if (browseExes) {
+      for (const f of data.exes) {
+        items.push(`<div class="browser-item exe" data-exe="${esc(f.path)}">🎮 ${esc(f.name)}</div>`);
+      }
+      if (!data.exes.length && !data.dirs.length) {
+        items.push('<div class="browser-item dim">empty folder</div>');
+      }
+    }
+    const box = mgr("browser-dirs");
+    box.innerHTML = items.join("");
+    box.querySelectorAll("[data-cd]").forEach((el) =>
+      el.addEventListener("click", () => openBrowser(el.dataset.cd)));
+    box.querySelectorAll("[data-exe]").forEach((el) =>
+      el.addEventListener("click", () => {
+        browseFor.value = el.dataset.exe;
+        closeBrowser();
+      }));
+  } catch (e) { /* ignore */ }
+}
+
+function closeBrowser() {
+  mgr("browser").style.display = "none";
+  browseFor = null;
+}
+
+function showBrowser(inputEl, withExes) {
+  browseFor = inputEl;
+  browseExes = withExes;
+  mgr("browser").style.display = "block";
+  mgr("browser-choose").style.display = withExes ? "none" : "";
+  openBrowser(inputEl.value.trim() || "/");
+}
+
+/* ---------- manager open/close ---------- */
+
+async function openManager(user) {
+  managerUser = user;
+  mgr("mgr-title").textContent = `${user} — libraries & games`;
+  mgr("mgr-notice").style.display = "none";
+  mgr("modal").style.display = "flex";
+  closeBrowser();
+  loadLibraries();
+  loadGames();
+
+  if (meta === null) {
+    try {
+      const resp = await api("/api/meta");
+      meta = resp.ok ? await resp.json() : {};
+    } catch (e) { meta = {}; }
+  }
+  const hints = [];
+  if (meta && meta.importer === false) hints.push("capsule-import.sh not found on the server (set capsule_dir in its config.yaml).");
+  if (meta && meta.sgdb_key === false) hints.push("No STEAMGRIDDB_API_KEY configured — imports work but without artwork/name matching.");
+  mgr("mgr-hints").textContent = hints.join(" ");
+}
+
+function initManager() {
+  mgr("mgr-close").addEventListener("click", () => (mgr("modal").style.display = "none"));
+  mgr("modal").addEventListener("click", (ev) => {
+    if (ev.target === mgr("modal")) mgr("modal").style.display = "none";
+  });
+
+  mgr("lib-add").addEventListener("click", () => {
+    const path = mgr("lib-path").value.trim();
+    if (!path) { mgrNotice("enter a folder path first"); return; }
+    mgrCall("POST", "/libraries", { path }, () => {
+      mgr("lib-path").value = "";
+      loadLibraries();
+    });
+  });
+  mgr("lib-browse").addEventListener("click", () => showBrowser(mgr("lib-path"), false));
+
+  mgr("game-add").addEventListener("click", () => {
+    const exe = mgr("game-exe").value.trim();
+    if (!exe) { mgrNotice("pick the game .exe first"); return; }
+    const body = {
+      exe,
+      name: mgr("game-name").value.trim(),
+      startdir: "",
+      sgdb_id: mgr("game-sgdb").value ? parseInt(mgr("game-sgdb").value, 10) : null,
+      launch_options: mgr("game-opts").value.trim(),
+      no_art: false,
+    };
+    mgrNotice("importing — Steam for this capsule will restart…", false);
+    mgrCall("POST", "/games", body, () => {
+      mgr("game-exe").value = "";
+      mgr("game-name").value = "";
+      mgr("game-sgdb").value = "";
+      mgr("game-opts").value = "";
+      loadGames();
+    });
+  });
+  mgr("game-browse").addEventListener("click", () => showBrowser(mgr("game-exe"), true));
+
+  mgr("browser-up").addEventListener("click", () => {
+    const up = browsePath.replace(/\/+$/, "").replace(/[^/]*$/, "");
+    openBrowser(up || "/");
+  });
+  mgr("browser-choose").addEventListener("click", () => {
+    if (browseFor) browseFor.value = browsePath;
+    closeBrowser();
+  });
+  mgr("browser-cancel").addEventListener("click", closeBrowser);
+}
+
 async function initDashboard() {
   $("#logout").addEventListener("click", async () => {
     await fetch("/api/logout", { method: "POST", credentials: "same-origin" });
@@ -144,6 +373,7 @@ async function initDashboard() {
   const data = await me.json();
   csrfToken = data.csrf;
 
+  initManager();
   await loadCapsules();
   setInterval(loadCapsules, 5000);
 }

@@ -61,6 +61,8 @@ class Config:
     capsule_host: str = ""  # host used in Sunshine links; empty = request host
     session_hours: int = 12
     capsulectl: str = CAPSULECTL
+    capsule_dir: str = "/Capsule"  # repo checkout: capsule-import.sh lives here
+    import_venv: str = "/opt/capsule-steam-venv"  # venv for capsule-import.py
 
 
 def load_config() -> Config:
@@ -202,6 +204,62 @@ def valid_capsule_name(name: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# capsule-import bridge (Steam library folders + non-Steam games)
+# ---------------------------------------------------------------------------
+
+CAPSULE_CONFIG_FILE = Path("/etc/capsule/config")
+IMPORT_TIMEOUT = 300  # add-game: Steam stop + SGDB downloads + Steam relaunch
+
+
+def capsule_conf_value(key: str, default: str = "") -> str:
+    try:
+        for line in CAPSULE_CONFIG_FILE.read_text().splitlines():
+            if line.startswith(f"{key}="):
+                return line.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return default
+
+
+def capsule_import(args: list[str], json_mode: bool = False,
+                   timeout: int = IMPORT_TIMEOUT) -> tuple[dict | None, str]:
+    """Run capsule-import.sh (handles Steam stop/relaunch + venv + ownership).
+    Returns (parsed_or_raw_dict, error_message)."""
+    script = Path(CONFIG.capsule_dir) / "capsule-import.sh"
+    if not script.is_file():
+        return None, f"{script} not found — set capsule_dir in {CONFIG_FILE} and re-run the installer"
+    env = os.environ.copy()
+    env["CAPSULE_PERSISTENT_DATA_PATH"] = capsule_conf_value("PERSISTENT_DATA_PATH")
+    env["CAPSULE_SGDB_KEY"] = capsule_conf_value("STEAMGRIDDB_API_KEY")
+    env["CAPSULE_IMPORT_VENV"] = CONFIG.import_venv
+    if json_mode:
+        env["CAPSULE_IMPORT_JSON"] = "1"
+    try:
+        proc = subprocess.run(
+            ["bash", str(script), *args],
+            capture_output=True, text=True, timeout=timeout, env=env,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return None, str(exc)
+    combined = (proc.stdout + "\n" + proc.stderr).strip()
+    if not json_mode:
+        if proc.returncode != 0:
+            return None, combined or "import tool failed"
+        return {"ok": True, "output": combined}, ""
+    if proc.returncode != 0:
+        return None, combined or "import tool failed"
+    try:
+        return json.loads(proc.stdout), ""
+    except json.JSONDecodeError:
+        return None, f"bad JSON from import tool: {proc.stdout[:200]}"
+
+
+def safe_text(value: str, max_len: int = 256) -> bool:
+    return bool(value) and len(value) <= max_len and "\x00" not in value \
+        and not any(c in value for c in "\r\n")
+
+
+# ---------------------------------------------------------------------------
 # Auth helpers / middleware
 # ---------------------------------------------------------------------------
 
@@ -239,6 +297,23 @@ class LoginBody(BaseModel):
 
 class ActionBody(BaseModel):
     action: str
+
+
+class LibraryBody(BaseModel):
+    path: str
+
+
+class GameBody(BaseModel):
+    exe: str
+    name: str = ""
+    startdir: str = ""
+    sgdb_id: int | None = None
+    launch_options: str = ""
+    no_art: bool = False
+
+
+class GameRemoveBody(BaseModel):
+    target: str
 
 
 def security_headers(response):
@@ -336,6 +411,142 @@ def api_capsules(request: Request):
     return security_headers(JSONResponse({"capsules": capsules}))
 
 
+# --- library folders & non-Steam games (must be registered before the
+# --- generic /api/capsules/{name}/{action} route, which would also match) ---
+
+def check_capsule(request: Request, name: str, csrf: bool = False):
+    err = require_auth(request)
+    if not err and csrf:
+        err = require_csrf(request)
+    if not err and not valid_capsule_name(name):
+        err = JSONResponse({"detail": "invalid capsule name"}, status_code=400)
+    return err
+
+
+@app.get("/api/capsules/{name}/libraries")
+def api_libraries_list(name: str, request: Request):
+    if err := check_capsule(request, name):
+        return security_headers(err)
+    data, err = capsule_import(["list-libraries", name], json_mode=True, timeout=60)
+    if err:
+        return security_headers(JSONResponse({"detail": err}, status_code=500))
+    return security_headers(JSONResponse(data))
+
+
+@app.post("/api/capsules/{name}/libraries")
+def api_libraries_add(name: str, body: LibraryBody, request: Request):
+    if err := check_capsule(request, name, csrf=True):
+        return security_headers(err)
+    if not body.path.startswith("/") or not safe_text(body.path):
+        return security_headers(JSONResponse(
+            {"detail": "path must be absolute (e.g. /mnt/games)"}, status_code=400))
+    data, err = capsule_import(["add-library", name, body.path.rstrip("/") or "/"])
+    if err:
+        return security_headers(JSONResponse({"detail": err}, status_code=500))
+    log.info("capsule %s: added library %s", name, body.path)
+    return security_headers(JSONResponse(data))
+
+
+@app.delete("/api/capsules/{name}/libraries")
+def api_libraries_remove(name: str, body: LibraryBody, request: Request):
+    if err := check_capsule(request, name, csrf=True):
+        return security_headers(err)
+    if not body.path.startswith("/") or not safe_text(body.path):
+        return security_headers(JSONResponse({"detail": "invalid path"}, status_code=400))
+    data, err = capsule_import(["remove-library", name, body.path.rstrip("/") or "/"])
+    if err:
+        return security_headers(JSONResponse({"detail": err}, status_code=500))
+    log.info("capsule %s: removed library %s", name, body.path)
+    return security_headers(JSONResponse(data))
+
+
+@app.get("/api/capsules/{name}/games")
+def api_games_list(name: str, request: Request):
+    if err := check_capsule(request, name):
+        return security_headers(err)
+    data, err = capsule_import(["list-games", name], json_mode=True, timeout=60)
+    if err:
+        return security_headers(JSONResponse({"detail": err}, status_code=500))
+    return security_headers(JSONResponse(data))
+
+
+@app.post("/api/capsules/{name}/games")
+def api_games_add(name: str, body: GameBody, request: Request):
+    if err := check_capsule(request, name, csrf=True):
+        return security_headers(err)
+    if not body.exe.startswith("/") or not safe_text(body.exe):
+        return security_headers(JSONResponse(
+            {"detail": "exe must be an absolute path to the game executable"}, status_code=400))
+    for value, label, limit in [
+        (body.name, "name", 120),
+        (body.startdir, "startdir", 512),
+        (body.launch_options, "launch options", 256),
+    ]:
+        if value and not safe_text(value, limit):
+            return security_headers(JSONResponse({"detail": f"invalid {label}"}, status_code=400))
+    if body.sgdb_id is not None and not (0 < body.sgdb_id <= 10**9):
+        return security_headers(JSONResponse({"detail": "invalid SteamGridDB id"}, status_code=400))
+
+    args = ["add-game", name, body.exe]
+    if body.name:
+        args += ["--name", body.name]
+    if body.startdir:
+        args += ["--startdir", body.startdir]
+    if body.sgdb_id:
+        args += ["--sgdb-id", str(body.sgdb_id)]
+    if body.launch_options:
+        args += ["--launch-options", body.launch_options]
+    if body.no_art:
+        args.append("--no-art")
+
+    data, err = capsule_import(args)
+    if err:
+        return security_headers(JSONResponse({"detail": err}, status_code=500))
+    log.info("capsule %s: imported game %s", name, body.exe)
+    return security_headers(JSONResponse(data))
+
+
+@app.delete("/api/capsules/{name}/games")
+def api_games_remove(name: str, body: GameRemoveBody, request: Request):
+    if err := check_capsule(request, name, csrf=True):
+        return security_headers(err)
+    if not safe_text(body.target, 200):
+        return security_headers(JSONResponse({"detail": "invalid target"}, status_code=400))
+    data, err = capsule_import(["remove-game", name, body.target])
+    if err:
+        return security_headers(JSONResponse({"detail": err}, status_code=500))
+    log.info("capsule %s: removed game %s", name, body.target)
+    return security_headers(JSONResponse(data))
+
+
+@app.get("/api/browse")
+def api_browse(request: Request, path: str = "/"):
+    """Server-side folder picker for the library/game forms (admin-only)."""
+    if err := require_auth(request):
+        return security_headers(err)
+    if not path.startswith("/") or not safe_text(path, 512):
+        return security_headers(JSONResponse({"detail": "invalid path"}, status_code=400))
+    target = Path(path)
+    try:
+        if not target.is_dir():
+            return security_headers(JSONResponse({"detail": "not a directory"}, status_code=400))
+        entries = sorted(target.iterdir(), key=lambda p: p.name.lower())
+        dirs = [d for d in entries if not d.name.startswith(".") and d.is_dir()][:300]
+        exes = [f for f in entries
+                if not f.name.startswith(".") and f.is_file()
+                and f.suffix.lower() == ".exe"][:300]
+    except PermissionError:
+        return security_headers(JSONResponse({"detail": f"permission denied: {path}"}, status_code=403))
+    except OSError as exc:
+        return security_headers(JSONResponse({"detail": str(exc)}, status_code=500))
+    return security_headers(JSONResponse({
+        "path": str(target),
+        "parent": None if str(target) == "/" else str(target.parent),
+        "dirs": [{"name": d.name, "path": str(d)} for d in dirs],
+        "exes": [{"name": f.name, "path": str(f)} for f in exes],
+    }))
+
+
 @app.post("/api/capsules/{name}/{action}")
 def api_capsule_action(name: str, action: str, body: ActionBody, request: Request):
     if err := require_auth(request):
@@ -360,6 +571,18 @@ def index(request: Request):
         return security_headers(HTMLResponse(
             "<!doctype html><meta http-equiv='refresh' content='0;url=/login'>", status_code=200))
     return security_headers(HTMLResponse((STATIC_DIR / "index.html").read_text()))
+
+
+@app.get("/api/meta")
+def api_meta(request: Request):
+    """Feature flags for the UI (importer present? SteamGridDB key set?)."""
+    if err := require_auth(request):
+        return security_headers(err)
+    script = Path(CONFIG.capsule_dir) / "capsule-import.sh"
+    return security_headers(JSONResponse({
+        "importer": script.is_file(),
+        "sgdb_key": bool(capsule_conf_value("STEAMGRIDDB_API_KEY")),
+    }))
 
 
 @app.get("/healthz")
