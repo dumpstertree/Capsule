@@ -101,7 +101,10 @@ capsule_info() {
     I_STEAM=no
     pgrep -U "$(id -u "$user")" -f 'steam.*bigpicture' >/dev/null 2>&1 && I_STEAM=yes
     I_XORG=no
-    capsule_display_up "$I_INDEX" && I_XORG=yes
+    # sway-type capsules stream from a Wayland session — no Xorg by design.
+    if [ "$I_TYPE" != "sway" ] && capsule_display_up "$I_INDEX"; then
+        I_XORG=yes
+    fi
 }
 
 do_list() {
@@ -163,12 +166,22 @@ usage() {
 }
 
 users_of_type() {
-    # Usage: users_of_type <game|llm> — one user per line
+    # Usage: users_of_type <game|llm|sway> — one user per line
     local want="$1" u
     for u in $(capsule_users); do
         [ "$(capsule_read_user_type "/home/$u/capsule.config")" = "$want" ] && echo "$u"
     done
     return 0   # a no-match sweep is not an error
+}
+
+stream_users() {
+    # All GPU-streaming capsules (game + sway): everything that must stop
+    # while the LLM capsule holds VRAM, and start when games mode resumes.
+    local u
+    for u in $(capsule_users); do
+        [ "$(capsule_read_user_type "/home/$u/capsule.config")" != "llm" ] && echo "$u"
+    done
+    return 0
 }
 
 do_use() {
@@ -180,8 +193,8 @@ do_use() {
     # keeps DRM master, which ROCm does not care about).
     local mode="$1" stop_users start_users u
     case "$mode" in
-        games) stop_users="$(users_of_type llm)";  start_users="$(users_of_type game)" ;;
-        llm)   stop_users="$(users_of_type game)"; start_users="$(users_of_type llm)" ;;
+        games) stop_users="$(users_of_type llm)";  start_users="$(stream_users)" ;;
+        llm)   stop_users="$(stream_users)";       start_users="$(users_of_type llm)" ;;
         *)     error "usage: capsulectl use <games|llm>" ;;
     esac
 

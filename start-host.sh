@@ -43,12 +43,15 @@ for HOME_DIR in /home/*; do
         continue
     fi
 
-    # LLM capsules are headless (no X display, no Sunshine) — start-stream.sh
-    # routes them to start-llm.sh instead.
-    if [ "$(capsule_read_user_type "$CONFIG_FILE")" = "llm" ]; then
-        echo "Skipping $USERNAME (llm capsule — headless, no display)"
-        continue
-    fi
+    # Non-game capsules need no X display: llm is fully headless, sway-type
+    # capsules run their own Wayland session (start-stream.sh routes them).
+    USER_TYPE="$(capsule_read_user_type "$CONFIG_FILE")"
+    case "$USER_TYPE" in
+        game) : ;;
+        llm)  echo "Skipping $USERNAME (llm capsule — headless, no display)"; continue ;;
+        sway) echo "Skipping $USERNAME (sway capsule — Wayland session, no Xorg)"; continue ;;
+        *)    warn "Skipping $USERNAME (unknown capsule TYPE='$USER_TYPE' in $CONFIG_FILE)"; continue ;;
+    esac
 
     CAP_IDX+=("$INDEX")
     CAP_USER+=("$USERNAME")

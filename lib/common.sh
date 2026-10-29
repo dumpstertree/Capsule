@@ -61,6 +61,13 @@ CAPSULE_CONFIG="${CAPSULE_CONFIG:-$CAPSULE_DIR/config}"
 #                              visible (e.g. hide an iGPU), ROCm index list
 #   LLM_VULKAN                 (empty)  "1" = force Ollama's Vulkan backend
 #                              (fallback when /dev/kfd is unavailable)
+#   CAPSULE_RENDER_NODE        (/dev/dri/renderD128) render node sway-type
+#                              capsules composite on (resolve via
+#                              /dev/dri/by-path; must be the RX 6800's)
+#   SWAY_RESOLUTION            (1920x1080) virtual output size (sway capsule)
+#   SWAY_REFRESH               (60)      virtual output refresh (Hz)
+#   SWAY_XDISPLAY              (:10)     Xwayland display inside sway sessions
+#                              (must not collide with real Xorg :0..:N)
 #
 # Port layout per capsule index N (verified against Sunshine source):
 #   base      = SUNSHINE_BASE_PORT + N * SUNSHINE_PORT_STEP
@@ -224,10 +231,36 @@ capsule_read_user_type() {
     # Capsule role from an optional "TYPE=llm" line in $HOME/capsule.config.
     # Line 1 stays the display index; absent/unknown TYPE means "game", so
     # every config written before llm capsules keeps working untouched.
+    # Known types: game | llm | sway (sway = Wayland game capsule, no Xorg).
     local file="$1" type=""
     if [ -f "$file" ]; then
         type="$(grep -m1 '^TYPE=' "$file" 2>/dev/null | cut -d= -f2- | tr -d '[:space:]')"
     fi
     [ -n "$type" ] || type="game"
     printf '%s' "$type"
+}
+
+capsule_game_bootstrap() {
+    # Usage: capsule_game_bootstrap <script_dir> <username> <user_home>
+    # Everything both session flavors (X and sway) do before the app starts:
+    # save sync (best effort) + GAMES_PATH auto-import with SteamGridDB art.
+    local script_dir="$1" username="$2" user_home="$3"
+
+    if ! sh "$script_dir/data-sync.sh"; then
+        warn "Data sync failed — starting stream anyway (saves may be out of date)"
+    fi
+
+    local games_path import_py pdp import_log
+    games_path="$(capsule_conf_get GAMES_PATH "")"
+    import_py="/opt/capsule-steam-venv/bin/python"
+    if [ -n "$games_path" ] && [ -d "$games_path" ] && [ -x "$import_py" ]; then
+        import_log="/tmp/capsule-import-$username.log"
+        pdp="$(capsule_conf_get PERSISTENT_DATA_PATH "")"
+        case "$pdp" in "~"*) pdp="$user_home${pdp:1}" ;; esac   # ~ = capsule user, not root
+        CAPSULE_PERSISTENT_DATA_PATH="$pdp" \
+        CAPSULE_SGDB_KEY="$(capsule_conf_get STEAMGRIDDB_API_KEY "")" \
+            "$import_py" "$script_dir/capsule-import.py" import-dir "$username" "$games_path" \
+            >"$import_log" 2>&1 \
+            || warn "Game auto-import had problems — see $import_log"
+    fi
 }

@@ -209,6 +209,88 @@ If it says CPU: check `/dev/kfd` exists in the container and that no
 `ollama` **system** service grabbed the GPU first (`systemctl status ollama`
 must be masked — preconfig-llm.sh does it).
 
+## Sway game capsule (Wayland, no X) — EXPERIMENTAL
+
+A third capsule role: `TYPE=sway` is a **game capsule with no X server at
+all**. Steam and games run inside **sway** (wlroots) with the **headless**
+backend — composited on the RX 6800 through its render node — and Sunshine
+captures the virtual output with its **wlr** backend
+(wlr-screencopy-unstable-v1). Moonlight connects exactly as before, same
+ports, same credentials.
+
+Why this exists: dummy X displays can never show hardware-accelerated
+content. X's Vulkan swapchain needs DRI3, DRI3 needs KMS, KMS needs DRM
+master — one per card, held by the GPU-backed capsule. **Wayland has no
+such wall:** apps render on a DRM render node (shared, no master) and
+present via dmabuf. A headless compositor needs no display hardware at
+all, so N of them can coexist with everything hardware-accelerated. This
+is the only known fix for capsule-N game FPS on a single non-SR-IOV GPU
+that does not involve buying anything.
+
+```
+steam (Xwayland :10) ─┐                       HEADLESS-1 output
+native VK games ──────┴─► sway (wlroots)  ──► Sunshine capture=wlr ──► Moonlight
+                          composites via
+                          /dev/dri/renderD128 (RX 6800)
+```
+
+### Convert a capsule
+
+```bash
+./preconfig-sway.sh capsule1     # installs sway, TYPE=sway, capture=wlr, retires Xorg :1
+capsulectl start capsule1        # Moonlight: same ports as always
+capsulectl list                  # TYPE=sway, XORG=n/a, sunshine listening
+```
+
+Config knobs (`/etc/capsule/config`): `CAPSULE_RENDER_NODE`
+(**must** be the RX 6800's render node — resolve with
+`ls -l /dev/dri/by-path/ | grep 12:00.0`), `SWAY_RESOLUTION` (1920x1080),
+`SWAY_REFRESH` (60), `SWAY_XDISPLAY` (:10 — Xwayland inside sway, must not
+collide with real Xorg display numbers).
+
+Revert: `sed -i '/^TYPE=/d' /home/capsule1/capsule.config &&
+./preconfig-sunshine.sh capsule1 1 && systemctl restart capsule-host &&
+capsulectl restart capsule1`
+
+### Verify (the whole point of the exercise)
+
+```bash
+# sway picked the real GPU, not software:
+runuser -u capsule1 -- env XDG_RUNTIME_DIR=/run/user/1001 \
+    WAYLAND_DISPLAY=wayland-1 eglinfo | grep -i renderer
+#   AMD Radeon RX 6800 (radeonsi, navi21)  ✓   llvmpipe  ✗
+
+# Vulkan sees the card (games will use it — no DRI3 involved):
+runuser -u capsule1 -- env XDG_RUNTIME_DIR=/run/user/1001 \
+    WAYLAND_DISPLAY=wayland-1 vulkaninfo --summary | grep deviceName
+
+# inside the stream, Steam → Settings → System should name the RX 6800
+# (the "generic graphics card" label cannot survive here: there is no X
+# GLX for it to misreport)
+```
+
+### Known limitations (state: first prototype)
+
+* **Input isolation is milestone 2.** uinput devices are global and
+  wlroots has no X-`InputClass` ignore equivalent: sway opens every input
+  device its user can read. Sunshine's virtual keyboard/mouse still carry
+  the `(seatN)` names (start-sway re-exports `XDG_SEAT` for Sunshine), but
+  **sway will not filter foreign ones** — with two capsules streaming at
+  once, pointers can leak between them. The fix being scoped: udev rules
+  that set each `(seatN)` device's GROUP to that capsule's user, so
+  sessions are walled off by file permissions (root's Xorg keeps its
+  InputClass rules; permission walls replace them for sway). Until then
+  this branch is for A/B testing one capsule at a time.
+* Wayland composites cursor plane differently; if the pointer misbehaves,
+  tune in `~/.config/sway/capsule.conf` (regenerated at every start —
+  change the generator in `start-sway.sh` instead).
+* Steam runs under Xwayland (sway starts it automatically, pinned to the
+  same render node via `WLR_RENDER_DRM_DEVICE` → `WAYLAND_DEVICE`).
+* Native Wayland Steam (`-vg-driver`/`SDL_VIDEODRIVER=wayland`) untested.
+* Sunshine needs its wlroots capture backend (Arch package: built in;
+  `capture = wlr` was added to Sunshine upstream in 2026 — older builds
+  will reject the value).
+
 ## Operating
 
 ```bash

@@ -32,6 +32,11 @@ if [ "$(capsule_read_user_type "$USER_HOME/capsule.config")" = "llm" ]; then
     exec "$SCRIPT_DIR/start-llm.sh"
 fi
 
+# --- Sway capsules: Wayland (headless wlroots) stream, no Xorg ------------------
+if [ "$(capsule_read_user_type "$USER_HOME/capsule.config")" = "sway" ]; then
+    exec "$SCRIPT_DIR/start-sway.sh"
+fi
+
 # --- Session environment -------------------------------------------------------
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 export DISPLAY=":$INDEX"
@@ -72,27 +77,8 @@ fi
 # Best-effort: harmless if auth is already open or handled another way.
 xhost "+local:" >/dev/null 2>&1 || true
 
-# --- Save sync (best effort — never block the stream on it) ---------------------
-if ! sh "$SCRIPT_DIR/data-sync.sh"; then
-    warn "Data sync failed — starting stream anyway (saves may be out of date)"
-fi
-
-# --- Auto-import games (best effort, before Steam starts) -----------------------
-# Scans GAMES_PATH: every subfolder with an .exe becomes a Steam shortcut with
-# SteamGridDB art. Known games are skipped without any network calls, so this
-# is ~free on repeat starts. Steam isn't running yet, so no stop/start needed.
-GAMES_PATH="$(capsule_conf_get GAMES_PATH "")"
-IMPORT_PY="/opt/capsule-steam-venv/bin/python"
-if [ -n "$GAMES_PATH" ] && [ -d "$GAMES_PATH" ] && [ -x "$IMPORT_PY" ]; then
-    IMPORT_LOG="/tmp/capsule-import-$USERNAME.log"
-    PDP="$(capsule_conf_get PERSISTENT_DATA_PATH "")"
-    case "$PDP" in "~"*) PDP="$USER_HOME${PDP:1}" ;; esac   # ~ = capsule user, not root
-    CAPSULE_PERSISTENT_DATA_PATH="$PDP" \
-    CAPSULE_SGDB_KEY="$(capsule_conf_get STEAMGRIDDB_API_KEY "")" \
-        "$IMPORT_PY" "$SCRIPT_DIR/capsule-import.py" import-dir "$USERNAME" "$GAMES_PATH" \
-        >"$IMPORT_LOG" 2>&1 \
-        || warn "Game auto-import had problems — see $IMPORT_LOG"
-fi
+# --- Save sync + game auto-import (shared with the sway flavor) -----------------
+capsule_game_bootstrap "$SCRIPT_DIR" "$USERNAME" "$USER_HOME"
 
 # --- Window manager -------------------------------------------------------------
 if ! pgrep -U "$(id -u)" -x openbox >/dev/null 2>&1; then

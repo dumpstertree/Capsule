@@ -54,6 +54,13 @@ install -m 0644 "$SCRIPT_DIR/example-sunshine.conf" "$CONF"
 sed -i "s|^port *=.*|port = $PORT|" "$CONF"
 sed -i "s|^csrf_allowed_origins *=.*|csrf_allowed_origins = $ORIGINS|" "$CONF"
 
+# sway-type capsules have no X display: Sunshine reads frames from the
+# compositor via wlr-screencopy-unstable-v1 instead of XShm.
+if [ "$(capsule_read_user_type "$USER_HOME/capsule.config")" = "sway" ]; then
+    sed -i "s|^capture *=.*|capture = wlr|" "$CONF"
+    log "capture backend: wlr (sway capsule)"
+fi
+
 chown "$USERNAME:$USERNAME" "$CONF"
 
 # --- Credentials ---------------------------------------------------------------

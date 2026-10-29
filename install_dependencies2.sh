@@ -62,6 +62,9 @@ BASE_PACKAGES=(
     # uv = python toolchain used to install Open WebUI (needs py3.12 runtime)
     ollama-rocm
     uv
+    # sway capsule (see preconfig-sway.sh): headless Wayland stream session
+    sway
+    mesa-utils
     #cachyos
     #cachyos-mesa 
     #cachyos-ffmpeg
