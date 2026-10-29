@@ -43,6 +43,9 @@ case "$SUBCMD" in
 esac
 [ -n "$USERNAME" ] || usage
 capsule_valid_username "$USERNAME" || error "Invalid username '$USERNAME'"
+# Loud, early check: the later failure paths (runuser/id) can go silent in a
+# non-interactive context, which looked like "import tool failed, no output".
+id -u "$USERNAME" >/dev/null 2>&1 || error "User $USERNAME does not exist on this container"
 
 USER_HOME="$(capsule_user_home "$USERNAME")"
 

@@ -200,6 +200,8 @@ def capsulectl(*args: str, timeout: int = 60) -> tuple[int, str, str]:
 
 
 def valid_capsule_name(name: str) -> bool:
+    if name in {"null", "undefined", "none"}:  # frontend bugs must not reach the wrapper
+        return False
     return bool(re.fullmatch(r"[a-z][a-z0-9-]{0,30}", name))
 
 

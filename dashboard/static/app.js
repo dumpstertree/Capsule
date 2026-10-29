@@ -212,6 +212,10 @@ async function loadGames() {
 }
 
 async function mgrCall(method, sub, body, onDone) {
+  if (!managerUser || managerUser === "null") {
+    mgrNotice("no capsule selected — close this dialog and open it from a capsule card's Games button");
+    return;
+  }
   mgrNotice("");
   const btns = document.querySelectorAll(".modal button");
   btns.forEach((b) => (b.disabled = true));
