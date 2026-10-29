@@ -30,6 +30,9 @@ done
 log "Installing app to $INSTALL_DIR"
 capsule_ensure_dir "$INSTALL_DIR" root 0755
 install -m 0644 "$SCRIPT_DIR/server.py" "$INSTALL_DIR/server.py"
+# replace wholesale: cp -r into an existing static/ would nest static/static/
+# and leave the served copy stale on every upgrade
+rm -rf "$INSTALL_DIR/static"
 cp -r "$SCRIPT_DIR/static" "$INSTALL_DIR/static"
 install -m 0644 "$SCRIPT_DIR/requirements.txt" "$INSTALL_DIR/requirements.txt"
 
