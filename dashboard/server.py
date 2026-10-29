@@ -239,15 +239,27 @@ def capsule_import(args: list[str], json_mode: bool = False,
             ["bash", str(script), *args],
             capture_output=True, text=True, timeout=timeout, env=env,
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        return None, str(exc)
+    except subprocess.TimeoutExpired:
+        msg = f"timed out after {timeout}s (first run also creates the import venv — retry once)"
+        log.error("capsule-import %s: %s", args, msg)
+        return None, msg
+    except OSError as exc:
+        log.error("capsule-import %s: spawn failed: %s", args, exc)
+        return None, f"could not run {script}: {exc}"
     combined = (proc.stdout + "\n" + proc.stderr).strip()
-    if not json_mode:
-        if proc.returncode != 0:
-            return None, combined or "import tool failed"
-        return {"ok": True, "output": combined}, ""
+    log.info("capsule-import %s -> rc=%s (%d chars output)", args, proc.returncode, len(combined))
     if proc.returncode != 0:
-        return None, combined or "import tool failed"
+        log.error("capsule-import %s FAILED rc=%s output:\n%s", args, proc.returncode, combined or "<none>")
+        if proc.returncode < 0:
+            return None, combined or f"import tool killed by signal {-proc.returncode} (check dmesg/journal)"
+        if combined:
+            return None, combined
+        return None, (
+            f"import tool exited with code {proc.returncode} and printed nothing — "
+            f"debug as root in the container: bash -x {script} {' '.join(args)}"
+        )
+    if not json_mode:
+        return {"ok": True, "output": combined}, ""
     try:
         return json.loads(proc.stdout), ""
     except json.JSONDecodeError:
