@@ -43,11 +43,23 @@ WEB_PORT="$(capsule_conf_get LLM_WEB_PORT 8080)"
 API_PORT="$(capsule_conf_get LLM_API_PORT 11434)"
 
 # --- 1. Packages ---------------------------------------------------------------
-log "Installing ollama-rocm + uv..."
-if ! pacman -S --needed --noconfirm ollama-rocm uv; then
-    warn "ollama-rocm unavailable — falling back to 'ollama' (CPU/Vulkan only)."
-    warn "GPU via ROCm needs /dev/kfd in the container (see example-lxc.conf)."
-    pacman -S --needed --noconfirm ollama uv
+# Availability check must be "does the package exist" (pacman -Si), NOT the
+# exit code of the install: a network hiccup during install looks identical
+# and used to silently drop the container onto the CPU-only ollama build
+# (observed: ollama ps -> 100% CPU, ~1 min per reply).
+pacman -S --needed --noconfirm uv
+if pacman -Si ollama-rocm >/dev/null 2>&1; then
+    if pacman -Q ollama >/dev/null 2>&1; then
+        log "Replacing plain 'ollama' with 'ollama-rocm' (conflicting providers)..."
+        pacman -Rdd --noconfirm ollama
+    fi
+    log "Installing ollama-rocm..."
+    pacman -S --needed --noconfirm ollama-rocm
+else
+    warn "'ollama-rocm' is not in your pacman databases — installing CPU-only ollama."
+    warn "The LLM will run ~30x slower. Enable a repository that carries it"
+    warn "(extra), or install ROCm support another way, then re-run this script."
+    pacman -S --needed --noconfirm ollama
 fi
 
 # --- 2. System ollama unit must not run (we serve per-user) ---------------------
