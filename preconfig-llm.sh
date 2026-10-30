@@ -11,7 +11,11 @@
 #   3. installs Open WebUI for that user (uv pulls a Python 3.12 runtime —
 #      Open WebUI does not support Arch's system Python)
 #   4. marks the capsule TYPE=llm in ~/<user>/capsule.config
-#   5. pulls the default model (~19 GB — skip with --no-pull)
+#   5. stops a session that is still running (TYPE only takes effect when
+#      the session script re-executes; starting an active unit is a no-op)
+#   6. pulls the default model (~19 GB — skip with --no-pull) via a
+#      throwaway server, because `ollama pull` needs one and the capsule
+#      service is what normally provides it
 #
 # Switch modes afterwards:
 #     capsulectl use llm      (stops game capsules, starts this one)
@@ -82,14 +86,48 @@ fi
 log "$USERNAME is now TYPE=llm (display index left untouched; X display and"
 log "Sunshine are skipped for this capsule from now on)"
 
-# --- 6. Pull the default model ----------------------------------------------------
+# --- 6. Take down a session that may still be running ---------------------------
+# TYPE only takes effect when the session script re-executes, and "start" on an
+# already-active unit is a no-op. Without this stop, a capsule that streamed
+# before the conversion keeps its stale X session forever: capsulectl reports
+# "active" while ollama never starts (observed after a mid-conversion reboot).
+if capsule_run_user "$USERNAME" systemctl --user is-active --quiet "capsule@$USERNAME.service"; then
+    log "Stopping the running $USERNAME session (TYPE=llm applies on next start)..."
+    capsule_run_user "$USERNAME" systemctl --user stop "capsule@$USERNAME.service"
+fi
+if INDEX="$(capsule_read_user_index "$USER_HOME/capsule.config")" && capsule_display_up "$INDEX"; then
+    log "Retiring Xorg :$INDEX (start-host skips llm capsules, so it will not come back)"
+    pkill -f "Xorg :$INDEX" || true
+    sleep 2
+fi
+
+# --- 7. Pull the default model ----------------------------------------------------
+# `ollama pull` speaks to a RUNNING server, and ours is normally started by the
+# capsule service — which is not up at conversion time. Run a throwaway server
+# just for the pull; if an llm session happens to be live already, the CLI
+# connects to that and the throwaway simply fails to bind (harmless).
 if [ "$PULL" = "1" ]; then
     FREE_GB="$(df -BG --output=avail "$(dirname "$MODELS_PATH")" 2>/dev/null | tail -1 | tr -dc '0-9')"
     if [ -n "$FREE_GB" ] && [ "$FREE_GB" -lt 25 ]; then
         error "Only ${FREE_GB}GB free at $MODELS_PATH — $MODEL needs ~20GB. Free space or set LLM_MODELS_PATH in $CAPSULE_CONFIG."
     fi
     log "Pulling $MODEL (~19GB download — this takes a while)..."
-    capsule_run_user "$USERNAME" -- env OLLAMA_MODELS="$MODELS_PATH" ollama pull "$MODEL"
+    if ! capsule_run_user "$USERNAME" -- env OLLAMA_MODELS="$MODELS_PATH" sh -c '
+            ollama serve >"/tmp/ollama-pull-$(id -un).log" 2>&1 &
+            srv=$!
+            for _ in $(seq 1 30); do
+                ollama list >/dev/null 2>&1 && break
+                sleep 1
+            done
+            ollama pull "$1"
+            rc=$?
+            kill "$srv" 2>/dev/null || true
+            exit "$rc"
+        ' sh "$MODEL"; then
+        warn "Model pull failed (network hiccup?) — everything else is installed."
+        warn "After 'capsulectl use llm' brings the server up, finish with:"
+        warn "  runuser -u $USERNAME -- ollama pull $MODEL"
+    fi
 else
     log "Skipping model pull. Later, as root:"
     log "  runuser -u $USERNAME -- env OLLAMA_MODELS=$MODELS_PATH ollama pull $MODEL"
