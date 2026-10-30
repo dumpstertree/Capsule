@@ -49,17 +49,20 @@ API_PORT="$(capsule_conf_get LLM_API_PORT 11434)"
 # (observed: ollama ps -> 100% CPU, ~1 min per reply).
 pacman -S --needed --noconfirm uv
 if pacman -Si ollama-rocm >/dev/null 2>&1; then
-    if pacman -Q ollama >/dev/null 2>&1; then
-        log "Replacing plain 'ollama' with 'ollama-rocm' (conflicting providers)..."
-        pacman -Rdd --noconfirm ollama
-    fi
-    log "Installing ollama-rocm..."
-    pacman -S --needed --noconfirm ollama-rocm
+    # Arch split packaging: 'ollama' is the CLI/server binary, 'ollama-rocm'
+    # only ADDS the ROCm backend libraries it loads at startup and depends on
+    # it. Install BOTH; never remove plain ollama (that deletes the binary).
+    log "Installing ollama + ollama-rocm (ROCm backend)..."
+    pacman -S --needed --noconfirm ollama ollama-rocm
 else
     warn "'ollama-rocm' is not in your pacman databases — installing CPU-only ollama."
     warn "The LLM will run ~30x slower. Enable a repository that carries it"
     warn "(extra), or install ROCm support another way, then re-run this script."
     pacman -S --needed --noconfirm ollama
+fi
+# Backend must actually be present, or every answer takes ~1 minute of CPU.
+if pacman -Si ollama-rocm >/dev/null 2>&1 && ! pacman -Q ollama-rocm >/dev/null 2>&1; then
+    error "ollama-rocm failed to install — run: pacman -S ollama ollama-rocm"
 fi
 
 # --- 2. System ollama unit must not run (we serve per-user) ---------------------
