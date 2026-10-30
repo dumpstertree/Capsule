@@ -34,7 +34,7 @@ WEB_PORT="$(capsule_conf_get LLM_WEB_PORT 8080)"
 MODELS_PATH="$(capsule_conf_get LLM_MODELS_PATH "$USER_HOME/.ollama/models")"
 CONTEXT_LENGTH="$(capsule_conf_get LLM_CONTEXT_LENGTH 8192)"
 KEEP_ALIVE="$(capsule_conf_get LLM_KEEP_ALIVE 240m)"
-HSA_OVERRIDE="$(capsule_conf_get LLM_HSA_OVERRIDE 10.3.0)"
+HSA_OVERRIDE="$(capsule_conf_get LLM_HSA_OVERRIDE "")"
 HIP_VISIBLE="$(capsule_conf_get LLM_HIP_VISIBLE_DEVICES "")"
 USE_VULKAN="$(capsule_conf_get LLM_VULKAN "")"
 
@@ -44,9 +44,11 @@ export OLLAMA_MODELS="$MODELS_PATH"
 export OLLAMA_HOST="0.0.0.0:$API_PORT"
 export OLLAMA_CONTEXT_LENGTH="$CONTEXT_LENGTH"
 export OLLAMA_KEEP_ALIVE="$KEEP_ALIVE"
-# RX 6800 is gfx1030, a first-class ROCm target — this override is a no-op
-# safety net for ROCm versions that gate the target behind PRO SKU names.
-export HSA_OVERRIDE_GFX_VERSION="$HSA_OVERRIDE"
+# RX 6800 is gfx1030, a first-class ROCm target since ROCm 5.3 — NO override
+# needed. Setting it anyway makes ollama log "user overrode visible devices"
+# and has been observed zeroing its GPU detection (total_vram=0B -> 100% CPU).
+# Only set LLM_HSA_OVERRIDE for a ROCm build that gates the target name.
+[ -n "$HSA_OVERRIDE" ] && export HSA_OVERRIDE_GFX_VERSION="$HSA_OVERRIDE"
 # ROCm sees EVERY amdgpu visible via /dev/kfd — including an iGPU, which it
 # has been observed preferring. Pin when the config says which one to use.
 [ -n "$HIP_VISIBLE" ] && export HIP_VISIBLE_DEVICES="$HIP_VISIBLE"

@@ -55,8 +55,9 @@ CAPSULE_CONFIG="${CAPSULE_CONFIG:-$CAPSULE_DIR/config}"
 #   LLM_MODELS_PATH            ($HOME/.ollama/models per llm capsule user)
 #   LLM_CONTEXT_LENGTH         (8192)   context tokens served per request
 #   LLM_KEEP_ALIVE             (240m)   how long the model stays VRAM-resident
-#   LLM_HSA_OVERRIDE           (10.3.0) ROCm gfx target (RX 6800 = gfx1030;
-#                              override is a no-op safety net there)
+#   LLM_HSA_OVERRIDE           (empty)  ROCm gfx target override — leave
+#                              EMPTY for gfx1030 (RX 6800, native since ROCm
+#                              5.3); setting it confuses Ollama's GPU probe
 #   LLM_HIP_VISIBLE_DEVICES    (empty)  pin ROCm to one GPU when several are
 #                              visible (e.g. hide an iGPU), ROCm index list
 #   LLM_VULKAN                 (empty)  "1" = force Ollama's Vulkan backend

@@ -197,7 +197,8 @@ capsulectl list        # shows TYPE column + active mode
 `LLM_MODEL` (qwen3-coder:30b) · `LLM_API_PORT` (11434) · `LLM_WEB_PORT` (8080)
 · `LLM_MODELS_PATH` (~/.ollama/models) · `LLM_CONTEXT_LENGTH` (8192) ·
 `LLM_KEEP_ALIVE` (240m — model stays loaded in VRAM) · `LLM_HSA_OVERRIDE`
-(10.3.0 = gfx1030/RX 6800) · `LLM_HIP_VISIBLE_DEVICES` (pin ROCm when an iGPU
+(leave EMPTY on gfx1030/RX 6800 — it's native; setting it confuses Ollama's
+GPU probe) · `LLM_HIP_VISIBLE_DEVICES` (pin ROCm when an iGPU
 is also visible — ROCm has been seen preferring it) · `LLM_VULKAN=1` (force
 Ollama's Vulkan backend if `/dev/kfd` is unavailable).
 
